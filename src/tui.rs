@@ -1,6 +1,68 @@
+use crate::model::{ProjectData, Status};
 use anyhow::Result;
-use crossterm::{event::{self,Event,KeyCode},execute,terminal::{disable_raw_mode,enable_raw_mode,EnterAlternateScreen,LeaveAlternateScreen}};
-use ratatui::{backend::CrosstermBackend,Terminal,widgets::{Block,Borders,Paragraph},layout::{Constraint,Direction,Layout}};
-use std::io::{self,stdout};
-use crate::model::{ProjectData,Status};
-pub fn run(data:&ProjectData)->Result<()> { enable_raw_mode()?; let mut out=stdout(); execute!(out,EnterAlternateScreen)?; let backend=CrosstermBackend::new(out); let mut terminal=Terminal::new(backend)?; loop { terminal.draw(|f|{ let chunks=Layout::default().direction(Direction::Vertical).constraints([Constraint::Length(3),Constraint::Min(1)].as_ref()).split(f.area()); f.render_widget(Paragraph::new("TASKLYNX  •  tx  •  terminal workspace  •  q: quit").block(Block::default().borders(Borders::ALL).title(" tasklynx ")),chunks[0]); let mut text=String::new(); for st in [Status::Todo,Status::Doing,Status::Done] { text.push_str(&format!("\n[ {} ]\n",st)); for t in data.tasks.iter().filter(|t|t.status==st && t.branch==data.current_branch) { text.push_str(&format!("  {}  {}  {}\n",&t.id.to_string()[..8],t.title,t.priority)); } } f.render_widget(Paragraph::new(text).block(Block::default().borders(Borders::ALL).title(format!(" branch:{} ",data.current_branch))),chunks[1]); })?; if event::poll(std::time::Duration::from_millis(250))? { if let Event::Key(k)=event::read()? { if k.code==KeyCode::Char('q'){break;} } } } disable_raw_mode()?; execute!(terminal.backend_mut(),LeaveAlternateScreen)?; Ok(()) }
+use crossterm::{
+    event::{self, Event, KeyCode},
+    execute,
+    terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
+};
+use ratatui::{
+    backend::CrosstermBackend,
+    layout::{Constraint, Direction, Layout},
+    widgets::{Block, Borders, Paragraph},
+    Terminal,
+};
+use std::io::stdout;
+pub fn run(data: &ProjectData) -> Result<()> {
+    enable_raw_mode()?;
+    let mut out = stdout();
+    execute!(out, EnterAlternateScreen)?;
+    let backend = CrosstermBackend::new(out);
+    let mut terminal = Terminal::new(backend)?;
+    loop {
+        terminal.draw(|f| {
+            let chunks = Layout::default()
+                .direction(Direction::Vertical)
+                .constraints([Constraint::Length(3), Constraint::Min(1)].as_ref())
+                .split(f.area());
+            f.render_widget(
+                Paragraph::new("TASKLYNX  •  tx  •  terminal workspace  •  q: quit")
+                    .block(Block::default().borders(Borders::ALL).title(" tasklynx ")),
+                chunks[0],
+            );
+            let mut text = String::new();
+            for st in [Status::Todo, Status::Doing, Status::Done] {
+                text.push_str(&format!("\n[ {} ]\n", st));
+                for t in data
+                    .tasks
+                    .iter()
+                    .filter(|t| t.status == st && t.branch == data.current_branch)
+                {
+                    text.push_str(&format!(
+                        "  {}  {}  {}\n",
+                        &t.id.to_string()[..8],
+                        t.title,
+                        t.priority
+                    ));
+                }
+            }
+            f.render_widget(
+                Paragraph::new(text).block(
+                    Block::default()
+                        .borders(Borders::ALL)
+                        .title(format!(" branch:{} ", data.current_branch)),
+                ),
+                chunks[1],
+            );
+        })?;
+        if event::poll(std::time::Duration::from_millis(250))? {
+            if let Event::Key(k) = event::read()? {
+                if k.code == KeyCode::Char('q') {
+                    break;
+                }
+            }
+        }
+    }
+    disable_raw_mode()?;
+    execute!(terminal.backend_mut(), LeaveAlternateScreen)?;
+    Ok(())
+}

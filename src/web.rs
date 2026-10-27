@@ -1,4 +1,4 @@
-use axum::{extract::{Path, State}, http::StatusCode, response::{Html, IntoResponse}, routing::{get, post, put}, Json, Router};
+use axum::{extract::{Path, State}, http::StatusCode, response::{Html, IntoResponse}, routing::{get, put}, Json, Router};
 use std::sync::{Arc, Mutex};
 use crate::{model::{ProjectData, Task}, store};
 const INDEX: &str = include_str!("../assets/index.html");
