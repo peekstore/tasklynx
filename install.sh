@@ -11,3 +11,23 @@ URL="${BASE}/download/${VERSION}/tasklynx-${OS}-${ARCH}"
 TMP=$(mktemp); trap 'rm -f "$TMP"' EXIT
 curl -fL "$URL" -o "$TMP"; chmod +x "$TMP"; sudo install -m 0755 "$TMP" /usr/local/bin/tasklynx
 printf 'Installed tasklynx %s\n' "$VERSION"
+
+# Install desktop entry and icon
+if command -v xdg-desktop-menu >/dev/null 2>&1 || [ "$(uname -s)" = "Linux" ]; then
+  ICON_DIR="$HOME/.local/share/icons/hicolor/256x256/apps"
+  DESK_DIR="$HOME/.local/share/applications"
+  mkdir -p "$ICON_DIR" "$DESK_DIR"
+  curl -fsSL "https://raw.githubusercontent.com/${REPO}/main/assets/tasklynx.png" -o "$ICON_DIR/tasklynx.png" 2>/dev/null || cp "$(dirname "$0")/../assets/tasklynx.png" "$ICON_DIR/tasklynx.png" 2>/dev/null || true
+  cat > "$DESK_DIR/tasklynx.desktop" << DESK
+[Desktop Entry]
+Name=Tasklynx
+Comment=Developer-first local task manager
+Exec=tasklynx
+Icon=tasklynx
+Type=Application
+Categories=Development;Utility;
+Terminal=true
+DESK
+  update-desktop-database "$DESK_DIR" 2>/dev/null || true
+  gtk-update-icon-cache -f -t "$HOME/.local/share/icons/hicolor" 2>/dev/null || true
+fi
