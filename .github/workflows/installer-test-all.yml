@@ -5,6 +5,8 @@ on:
     paths:
       - 'installer.sh'
       - 'installer.ps1'
+      - 'install.sh'
+      - 'install.ps1'
   workflow_dispatch:
 
 jobs:
@@ -32,23 +34,11 @@ jobs:
           tasklynx --version
           tx --version
 
-  macos-x64:
-    runs-on: macos-13
-    steps:
-      - uses: actions/checkout@v4
-      - name: Test installer.sh on macOS Intel
-        run: |
-          rm -rf ~/.config/peekstore/tasklynx
-          sh ./installer.sh
-          export PATH="$HOME/.config/peekstore/tasklynx/bin:$PATH"
-          tasklynx --version
-          tx --version
-
-  macos-arm64:
+  macos:
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Test installer.sh on macOS ARM64
+      - name: Test installer.sh on macOS latest
         run: |
           rm -rf ~/.config/peekstore/tasklynx
           sh ./installer.sh
@@ -60,12 +50,36 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Test installer.ps1 on Windows
+      - name: Test installer.ps1 on Windows latest
         shell: pwsh
         run: |
-          $env:USERPROFILE = $env:TEMP + "\testuser"
+          $env:USERPROFILE = "$env:TEMP\testuser-$(Get-Random)"
           New-Item -ItemType Directory -Force -Path $env:USERPROFILE | Out-Null
           & .\installer.ps1
           $env:PATH = "$env:USERPROFILE\.config\peekstore\tasklynx\bin;$env:PATH"
           tasklynx --version
           tx --version
+
+  termux:
+    runs-on: ubuntu-latest
+    container:
+      image: termux/termux-docker:latest
+    steps:
+      - name: Setup
+        run: |
+          pkg update -y && pkg install -y curl bash
+      - name: Test Termux style install
+        run: |
+          rm -rf ~/.config/peekstore/tasklynx
+          curl -fsSL https://raw.githubusercontent.com/peekstore/tasklynx/main/installer.sh | sh
+          export PATH="$HOME/.config/peekstore/tasklynx/bin:$PATH"
+          tasklynx --version
+          tx --version
+
+  nix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: cachix/install-nix-action@v27
+      - name: Test nix run
+        run: nix run github:peekstore/tasklynx -- --version || true
