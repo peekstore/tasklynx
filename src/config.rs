@@ -3,9 +3,14 @@ use anyhow::Result;
 use std::{fs, path::PathBuf};
 
 pub fn dir() -> PathBuf {
-    dirs::config_dir()
-        .unwrap_or_else(|| PathBuf::from("."))
-        .join("tasklynx")
+    let base = std::env::var_os("XDG_CONFIG_HOME")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| {
+            dirs::home_dir()
+                .unwrap_or_else(|| PathBuf::from("."))
+                .join(".config")
+        });
+    base.join("peekstore").join("tasklynx")
 }
 pub fn path() -> PathBuf {
     dir().join("config.toml")
