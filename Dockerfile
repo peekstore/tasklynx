@@ -1,5 +1,5 @@
 # Build stage
-FROM rust:1.80-slim AS builder
+FROM rust:latest AS builder
 WORKDIR /app
 RUN apt-get update && apt-get install -y pkg-config && rm -rf /var/lib/apt/lists/*
 COPY Cargo.toml Cargo.lock build.rs ./
