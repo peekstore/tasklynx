@@ -202,3 +202,19 @@ See [SECURITY.md](SECURITY.md).
 
 - [@rkriad585](https://github.com/rkriad585)
 - [@peekstore](https://github.com/peekstore)
+
+## Uninstall
+
+### Using self command
+```bash
+tx self uninstall
+```
+
+### Using installer script
+```bash
+curl -fsSL https://raw.githubusercontent.com/peekstore/tasklynx/main/installer.sh | sh -s -- --selfuninstall
+```
+
+```powershell
+irm https://raw.githubusercontent.com/peekstore/tasklynx/main/installer.ps1 | iex -ArgumentList "--selfuninstall"
+```
