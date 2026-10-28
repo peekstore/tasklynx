@@ -238,12 +238,21 @@ jobs:
           find dist -name "*.sha256" -exec cp {} final/ \;
           cd final && sha256sum * > SHA256SUMS.txt && ls -lh
 
-      - name: Remove existing release (keep tag)
+      - name: Remove existing releases for tag (keep tag)
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release delete "${{ needs.prepare.outputs.tag }}" \
-            --repo "${{ github.repository }}" --yes || true
+          TAG="${{ needs.prepare.outputs.tag }}"
+          ids=$(gh api "repos/${{ github.repository }}/releases?per_page=100" \
+            --jq ".[] | select(.tag_name == \"$TAG\") | .id")
+          if [ -z "$ids" ]; then
+            echo "No existing releases for $TAG"
+          else
+            for id in $ids; do
+              echo "Deleting release id=$id"
+              gh api -X DELETE "repos/${{ github.repository }}/releases/$id" || true
+            done
+          fi
 
       - name: Publish Release
         uses: softprops/action-gh-release@v2
