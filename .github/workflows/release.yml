@@ -238,6 +238,13 @@ jobs:
           find dist -name "*.sha256" -exec cp {} final/ \;
           cd final && sha256sum * > SHA256SUMS.txt && ls -lh
 
+      - name: Remove existing release (keep tag)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release delete "${{ needs.prepare.outputs.tag }}" \
+            --repo "${{ github.repository }}" --yes || true
+
       - name: Publish Release
         uses: softprops/action-gh-release@v2
         with:
