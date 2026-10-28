@@ -22,8 +22,12 @@ if [ "$IS_UNINSTALL" = true ]; then
     echo ""
     echo "Tasklynx Uninstaller"
     echo ""
-    [ -f "${BIN_DIR}/${PROJECT_NAME}" ] && rm -f "${BIN_DIR}/${PROJECT_NAME}" && echo "  Removed ${BIN_DIR}/${PROJECT_NAME}"
-    [ -e "${BIN_DIR}/tx" ] && rm -f "${BIN_DIR}/tx" && echo "  Removed ${BIN_DIR}/tx"
+    if [ -f "${BIN_DIR}/${PROJECT_NAME}" ]; then
+        rm -f "${BIN_DIR}/${PROJECT_NAME}" && echo "  Removed ${BIN_DIR}/${PROJECT_NAME}"
+    fi
+    if [ -e "${BIN_DIR}/tx" ] || [ -L "${BIN_DIR}/tx" ]; then
+        rm -f "${BIN_DIR}/tx" && echo "  Removed ${BIN_DIR}/tx"
+    fi
     [ -d "$BIN_DIR" ] && rmdir "$BIN_DIR" 2>/dev/null || true
     echo ""
     echo "Tasklynx uninstalled. Restart your terminal to apply PATH changes."
