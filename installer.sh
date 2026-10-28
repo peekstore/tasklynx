@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 # Tasklynx Installer for Linux/macOS/Android (Termux)
 set -e
 
@@ -6,25 +6,45 @@ PROJECT_NAME="tasklynx"
 VERSION_URL="https://raw.githubusercontent.com/peekstore/${PROJECT_NAME}/main/.version"
 RELEASE_URL="https://github.com/peekstore/${PROJECT_NAME}/releases/download"
 
-VERSION=$(curl -sL "$VERSION_URL" | tr -d '[:space:]' || echo "")
-[ -z "$VERSION" ] && VERSION="v0.0.1-beta-1"
-[[ "$VERSION" != v* ]] && VERSION="v${VERSION}"
+VERSION=""
+if command -v curl >/dev/null 2>&1; then
+    VERSION=$(curl -fsSL "$VERSION_URL" 2>/dev/null | tr -d ' \n\r' || true)
+fi
+if [ -z "$VERSION" ]; then
+    VERSION="v0.0.1-beta-1"
+fi
+case "$VERSION" in
+    v*) ;;
+    *) VERSION="v${VERSION}" ;;
+esac
 
 echo ">>> Installing ${PROJECT_NAME} ${VERSION}..."
 echo ""
 
-OS=$(uname -s | tr '[:upper:]' '[:lower:]')
-ARCH=$(uname -m)
+OS_NAME="$(uname -s)"
+OS_LOWER="$(echo "$OS_NAME" | tr '[:upper:]' '[:lower:]')"
+ARCH_NAME="$(uname -m)"
 
-case "$ARCH" in
+ARCH="amd64"
+case "$ARCH_NAME" in
     x86_64|amd64) ARCH="amd64" ;;
     aarch64|arm64) ARCH="arm64" ;;
-    *) echo "Unsupported architecture: $ARCH"; exit 1 ;;
+    armv7l|armv8l) ARCH="arm64" ;;
+    *) echo "Unsupported architecture: $ARCH_NAME"; exit 1 ;;
 esac
 
+OS="linux"
 if [ -n "${TERMUX_VERSION:-}" ] || [ -d "/data/data/com.termux" ]; then
     OS="android"
 fi
+case "$OS_LOWER" in
+    darwin*) OS="darwin" ;;
+    *) 
+        if [ "$OS" != "android" ]; then
+            OS="linux"
+        fi
+        ;;
+esac
 
 case "$OS" in
     linux|android) DOWNLOAD_NAME="${PROJECT_NAME}-linux-${ARCH}" ;;
@@ -34,7 +54,7 @@ esac
 
 DOWNLOAD_URL="${RELEASE_URL}/${VERSION}/${DOWNLOAD_NAME}"
 
-if [ -n "$XDG_CONFIG_HOME" ]; then
+if [ -n "${XDG_CONFIG_HOME:-}" ]; then
     BIN_DIR="$XDG_CONFIG_HOME/peekstore/${PROJECT_NAME}/bin"
 else
     BIN_DIR="$HOME/.config/peekstore/${PROJECT_NAME}/bin"
@@ -42,37 +62,62 @@ fi
 mkdir -p "$BIN_DIR"
 
 echo "Downloading ${DOWNLOAD_URL}"
-curl -sL -o "${BIN_DIR}/${PROJECT_NAME}" "$DOWNLOAD_URL" || {
-    echo "Error: Failed to download ${PROJECT_NAME}"
-    exit 1
-}
-chmod +x "${BIN_DIR}/${PROJECT_NAME}"
-[ -f "${BIN_DIR}/${PROJECT_NAME}" ] || { echo "Error: Download failed"; exit 1; }
-ln -sf "${BIN_DIR}/${PROJECT_NAME}" "${BIN_DIR}/tx" 2>/dev/null
-
-SIZE=$(du -k "${BIN_DIR}/${PROJECT_NAME}" | cut -f1)
-echo "OK   Installed to ${BIN_DIR}/${PROJECT_NAME} (${SIZE} KB)"
-
-SHELL_RC=""
-case "$SHELL" in
-    */bash) SHELL_RC="$HOME/.bashrc" ;;
-    */zsh)  SHELL_RC="$HOME/.zshrc" ;;
-    */fish) SHELL_RC="$HOME/.config/fish/config.fish" ;;
-    *)      SHELL_RC="$HOME/.profile" ;;
-esac
-
-if ! echo "$PATH" | grep -q "$BIN_DIR"; then
-    echo "Adding to PATH..."
-    if [ "$(basename "$SHELL")" = "fish" ]; then
-        echo "set -gx PATH $BIN_DIR \$PATH" >> "$SHELL_RC"
-    else
-        echo "export PATH=\"\$PATH:$BIN_DIR\"" >> "$SHELL_RC"
-    fi
-    echo "PATH updated. Run 'source $SHELL_RC' or restart your terminal."
+if command -v curl >/dev/null 2>&1; then
+    curl -fsSL -o "${BIN_DIR}/${PROJECT_NAME}" "$DOWNLOAD_URL" || {
+        echo "Error: Failed to download ${PROJECT_NAME}"
+        exit 1
+    }
+elif command -v wget >/dev/null 2>&1; then
+    wget -O "${BIN_DIR}/${PROJECT_NAME}" "$DOWNLOAD_URL" || {
+        echo "Error: Failed to download ${PROJECT_NAME}"
+        exit 1
+    }
 else
-    echo "Already in PATH"
+    echo "Error: curl or wget required"
+    exit 1
 fi
 
+chmod +x "${BIN_DIR}/${PROJECT_NAME}"
+if [ ! -f "${BIN_DIR}/${PROJECT_NAME}" ] || [ ! -s "${BIN_DIR}/${PROJECT_NAME}" ]; then
+    echo "Error: Download failed or empty file"
+    exit 1
+fi
+
+# Verify it's a binary, not HTML
+if head -c 15 "${BIN_DIR}/${PROJECT_NAME}" | grep -q "<"; then
+    echo "Error: Downloaded HTML instead of binary (wrong URL/version)"
+    exit 1
+fi
+
+ln -sf "${BIN_DIR}/${PROJECT_NAME}" "${BIN_DIR}/tx" 2>/dev/null
+
+SIZE=$(du -k "${BIN_DIR}/${PROJECT_NAME}" 2>/dev/null | cut -f1 || echo "?")
+echo "OK   Installed to ${BIN_DIR}/${PROJECT_NAME} (${SIZE} KB)"
+
+SHELL_NAME="$(basename "${SHELL:-sh}")"
+SHELL_RC=""
+case "$SHELL_NAME" in
+    bash) SHELL_RC="$HOME/.bashrc" ;;
+    zsh)  SHELL_RC="$HOME/.zshrc" ;;
+    fish) SHELL_RC="$HOME/.config/fish/config.fish" ;;
+    *)    SHELL_RC="$HOME/.profile" ;;
+esac
+
+case ":$PATH:" in
+    *":$BIN_DIR:"*) echo "Already in PATH" ;;
+    *)
+        echo "Adding to PATH..."
+        if [ "$SHELL_NAME" = "fish" ]; then
+            mkdir -p "$(dirname "$SHELL_RC")"
+            echo "set -gx PATH $BIN_DIR \$PATH" >> "$SHELL_RC"
+        else
+            echo "export PATH=\"\$PATH:$BIN_DIR\"" >> "$SHELL_RC"
+        fi
+        echo "PATH updated. Run 'source $SHELL_RC' or restart your terminal."
+        ;;
+esac
+
+export PATH="$PATH:$BIN_DIR"
 echo ""
 echo "OK   ${PROJECT_NAME} ${VERSION} installed successfully!"
 echo "Run '${PROJECT_NAME} --help' or 'tx --help' to get started"
