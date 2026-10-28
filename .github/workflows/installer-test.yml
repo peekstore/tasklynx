@@ -1,0 +1,20 @@
+name: Installer Test
+on:
+  push:
+    paths:
+      - 'installer.sh'
+      - 'installer.ps1'
+      - '.version'
+  workflow_dispatch:
+
+jobs:
+  test-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Test installer.sh
+        run: |
+          rm -rf ~/.config/peekstore/tasklynx
+          curl -fsSL https://raw.githubusercontent.com/peekstore/tasklynx/${{ github.sha }}/installer.sh | bash
+          export PATH="$HOME/.config/peekstore/tasklynx/bin:$PATH"
+          tasklynx --version
+          tx --version
