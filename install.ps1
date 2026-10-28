@@ -1,5 +1,5 @@
 $ErrorActionPreference = 'Stop'
-$Repo = 'rkriad585/tasklynx'
+$Repo = 'peekstore/tasklynx'
 if ($env:TASKLYNX_VERSION) { $Version = $env:TASKLYNX_VERSION } else { $Release = Invoke-RestMethod "https://api.github.com/repos/$Repo/releases/latest"; $Version = $Release.tag_name }
 $Asset = "tasklynx-windows-amd64.exe"
 $Url = "https://github.com/$Repo/releases/download/$Version/$Asset"

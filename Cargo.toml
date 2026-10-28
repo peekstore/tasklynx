@@ -4,7 +4,7 @@ version = "0.0.1-beta-1"
 edition = "2021"
 description = "A developer-first local task manager with Git-style workflows and a terminal-native dashboard."
 license = "MIT"
-repository = "https://github.com/rkriad585/tasklynx"
+repository = "https://github.com/peekstore/tasklynx"
 build = "build.rs"
 
 [dependencies]

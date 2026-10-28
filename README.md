@@ -2,7 +2,7 @@
 
 > Developer-first local task manager — Rust, terminal UI, responsive terminal-style web dashboard.
 
-[![CI](https://github.com/rkriad585/tasklynx/actions/workflows/ci.yml/badge.svg)](https://github.com/rkriad585/tasklynx/actions/workflows/ci.yml)
+[![CI](https://github.com/peekstore/tasklynx/actions/workflows/ci.yml/badge.svg)](https://github.com/peekstore/tasklynx/actions/workflows/ci.yml)
 
 ## Features
 
@@ -27,13 +27,13 @@
 ## Quick start
 
 ```bash
-curl -sL https://raw.githubusercontent.com/rkriad585/tasklynx/main/install.sh | bash
+curl -sL https://raw.githubusercontent.com/peekstore/tasklynx/main/install.sh | bash
 ```
 
 Windows PowerShell:
 
 ```powershell
-irm https://raw.githubusercontent.com/rkriad585/tasklynx/main/install.ps1 | iex
+irm https://raw.githubusercontent.com/peekstore/tasklynx/main/install.ps1 | iex
 ```
 
 Then:

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
-REPO="rkriad585/tasklynx"
+REPO="peekstore/tasklynx"
 VERSION="${TASKLYNX_VERSION:-latest}"
 BASE="https://github.com/${REPO}/releases"
 OS="$(uname -s | tr '[:upper:]' '[:lower:]')"; ARCH="$(uname -m)"
