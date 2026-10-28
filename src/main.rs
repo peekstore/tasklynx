@@ -100,7 +100,7 @@ enum Cmd {
         action: ConfigCmd,
     },
     #[command(name = "self")]
-    SelfCmd {
+    Self {
         #[command(subcommand)]
         action: SelfSubCmd,
     },
@@ -396,7 +396,7 @@ async fn main() -> Result<()> {
             }
             ConfigCmd::Show => println!("{}", toml::to_string_pretty(&config::load()?)?),
         },
-        Cmd::SelfCmd { action } => match action {
+        Cmd::Self { action } => match action {
             SelfSubCmd::Update => {
                 println!("Checking for updates...");
                 let _ = std::process::Command::new("sh")
