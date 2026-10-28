@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
-# installer.sh - Installer and Uninstaller for tasklynx on Linux / macOS
+# installer.sh - Installer and Uninstaller for tasklynx
+# Supports Linux, macOS, NixOS, and Android Termux
 
 set -euo pipefail
 
 PROJECT_NAME="tasklynx"
 GITHUB_REPO="peekstore/tasklynx"
 
-CONFIG_DIR="${HOME}/.config/tasklynx"
 BIN_DIR="${HOME}/.local/bin"
 BINARY_PATH="${BIN_DIR}/${PROJECT_NAME}"
 
@@ -15,27 +15,6 @@ GREEN='\033[0;32m'
 YELLOW='\033[0;33m'
 CYAN='\033[0;36m'
 NC='\033[0m'
-
-clean_profile() {
-    local profile="$1"
-    if [[ -f "$profile" ]]; then
-        grep -v "${PROJECT_NAME}" "$profile" > "${profile}.tmp" 2>/dev/null || true
-        mv "${profile}.tmp" "$profile"
-    fi
-}
-
-add_to_profile() {
-    local profile="$1"
-    mkdir -p "$(dirname "$BIN_DIR")"
-    if [[ -f "$profile" ]] && ! grep -q "\.local/bin" "$profile"; then
-        echo "" >> "$profile"
-        echo "# tasklynx PATH" >> "$profile"
-        echo "export PATH=\"\$HOME/.local/bin:\$PATH\"" >> "$profile"
-    elif [[ ! -f "$profile" ]]; then
-        echo "# tasklynx PATH" > "$profile"
-        echo "export PATH=\"\$HOME/.local/bin:\$PATH\"" >> "$profile"
-    fi
-}
 
 IS_UNINSTALL=false
 for arg in "$@"; do
@@ -47,73 +26,100 @@ done
 if [ "$IS_UNINSTALL" = true ]; then
     echo -e "\n${YELLOW}tasklynx Uninstaller${NC}\n"
     if [[ -f "$BINARY_PATH" ]]; then
-        printf "  Removing binary: %s ... " "$BINARY_PATH"
         rm -f "$BINARY_PATH"
-        echo -e "${GREEN}OK${NC}"
+        echo -e "  ${GREEN}Removed${NC} $BINARY_PATH"
     fi
-    for p in "${HOME}/.bashrc" "${HOME}/.zshrc" "${HOME}/.profile" "${HOME}/.bash_profile"; do
-        if [[ -f "$p" ]]; then
-            printf "  Updating %s ... " "$(basename "$p")"
-            clean_profile "$p"
-            echo -e "${GREEN}OK${NC}"
-        fi
-    done
+    if command -v nix-env >/dev/null 2>&1 && nix-env -q | grep -q tasklynx 2>/dev/null; then
+        nix-env -e tasklynx 2>/dev/null || true
+        echo -e "  ${GREEN}Removed${NC} from nix profile"
+    fi
     echo -e "\n${GREEN}tasklynx uninstalled.${NC}\n"
     exit 0
 fi
 
 echo -e "\n${CYAN}tasklynx Installer${NC}\n"
 
-printf "  Checking latest version ... "
-VERSION_URL="https://raw.githubusercontent.com/${GITHUB_REPO}/main/.version"
-if command -v curl >/dev/null 2>&1; then
-    VERSION=$(curl -fsSL "$VERSION_URL" 2>/dev/null | tr -d '[:space:]' || echo "latest")
-elif command -v wget >/dev/null 2>&1; then
-    VERSION=$(wget -qO- "$VERSION_URL" 2>/dev/null | tr -d '[:space:]' || echo "latest")
-else
-    VERSION="latest"
+# Check if on NixOS/Nix
+if command -v nix >/dev/null 2>&1; then
+    echo -e "  ${CYAN}Nix detected${NC}"
+    if [ -f /etc/NIXOS ]; then
+        echo "  For NixOS, add to your configuration.nix or home-manager:"
+        echo "    environment.systemPackages = [ pkgs.tasklynx ]; # or build from source"
+        echo "  Or use: nix profile install github:peekstore/tasklynx"
+        echo "  Or run directly: nix run github:peekstore/tasklynx"
+    else
+        echo "  Try: nix profile install github:peekstore/tasklynx"
+        echo "  Or run: nix run github:peekstore/tasklynx -- --help"
+    fi
+    echo ""
 fi
-if [ -z "$VERSION" ]; then VERSION="latest"; fi
-echo -e "${GREEN}${VERSION}${NC}"
 
-printf "  Detecting platform ... "
+# Detect platform
 OS_NAME=$(uname -s | tr '[:upper:]' '[:lower:]')
 case "$OS_NAME" in
-    linux*) OS="linux" ;;
+    linux*)
+        if [ -n "${TERMUX_VERSION:-}" ] || [ -d "/data/data/com.termux" ]; then
+            OS="android"
+        elif [ -f /etc/NIXOS ]; then
+            OS="linux"
+        else
+            OS="linux"
+        fi
+        ;;
     darwin*) OS="darwin" ;;
-    *) echo -e "${RED}FAILED${NC}"; echo "Unsupported OS: $OS_NAME"; exit 1 ;;
+    *) echo -e "${RED}Unsupported OS${NC}"; exit 1 ;;
 esac
+
 ARCH_NAME=$(uname -m)
 case "$ARCH_NAME" in
     x86_64|amd64) ARCH="amd64" ;;
-    arm64|aarch64) ARCH="arm64" ;;
-    *) echo -e "${RED}FAILED${NC}"; echo "Unsupported arch: $ARCH_NAME"; exit 1 ;;
+    aarch64|arm64) ARCH="arm64" ;;
+    armv7l) ARCH="arm64" ;; # best effort
+    *) echo -e "${RED}Unsupported arch${NC}"; exit 1 ;;
 esac
-echo -e "${GREEN}${OS}-${ARCH}${NC}"
 
-if [ "$VERSION" = "latest" ]; then
-    LATEST=$(curl -fsSL "https://api.github.com/repos/${GITHUB_REPO}/releases/latest" 2>/dev/null | sed -n 's/.*"tag_name": "\([^"]*\)".*/\1/p' | head -1)
-    [ -n "$LATEST" ] && VERSION="$LATEST"
+printf "  Platform: %s-%s\n" "$OS" "$ARCH"
+
+# Get version
+VERSION=$(cat /dev/stdin 2>/dev/null || true)
+if [ -z "${VERSION:-}" ] || [ "$VERSION" = "latest" ]; then
+    VERSION=$(curl -fsSL "https://api.github.com/repos/${GITHUB_REPO}/releases/latest" 2>/dev/null | grep '"tag_name"' | cut -d'"' -f4 | head -1 || echo "latest")
 fi
 
-DOWNLOAD_URL="https://github.com/${GITHUB_REPO}/releases/download/${VERSION}/tasklynx-${OS}-${ARCH}"
-echo -e "  Downloading from ${DOWNLOAD_URL}\n"
-mkdir -p "$BIN_DIR"
-if command -v curl >/dev/null 2>&1; then
-    curl -fL --progress-bar -o "$BINARY_PATH" "$DOWNLOAD_URL"
-elif command -v wget >/dev/null 2>&1; then
-    wget --show-progress -O "$BINARY_PATH" "$DOWNLOAD_URL"
+if [ "$VERSION" = "latest" ] || [ -z "$VERSION" ]; then
+    # fallback
+    VERSION=$(curl -fsSL "https://raw.githubusercontent.com/${GITHUB_REPO}/main/.version" 2>/dev/null | tr -d '[:space:]' || echo "")
+fi
+
+if [ -n "$VERSION" ] && [ "$VERSION" != "latest" ]; then
+    if [[ "$VERSION" != v* ]]; then VERSION="v${VERSION}"; fi
+    DOWNLOAD_URL="https://github.com/${GITHUB_REPO}/releases/download/${VERSION}/tasklynx-${OS}-${ARCH}"
 else
-    echo -e "${RED}curl/wget required${NC}"; exit 1
+    DOWNLOAD_URL="https://github.com/${GITHUB_REPO}/releases/latest/download/tasklynx-${OS}-${ARCH}"
 fi
+
+echo -e "  Downloading from: ${DOWNLOAD_URL}"
+mkdir -p "$BIN_DIR"
+
+if command -v curl >/dev/null 2>&1; then
+    curl -fL --progress-bar -o "$BINARY_PATH" "$DOWNLOAD_URL" || {
+        echo -e "${RED}Download failed${NC}"
+        echo "Try manual download from https://github.com/${GITHUB_REPO}/releases"
+        exit 1
+    }
+else
+    wget --show-progress -O "$BINARY_PATH" "$DOWNLOAD_URL" || exit 1
+fi
+
 chmod +x "$BINARY_PATH"
 
-ACTIVE_SHELL=$(basename "${SHELL:-bash}")
-if [ "$ACTIVE_SHELL" = "zsh" ]; then
-    touch "${HOME}/.zshrc"; add_to_profile "${HOME}/.zshrc"; SRC=".zshrc"
-else
-    touch "${HOME}/.bashrc"; add_to_profile "${HOME}/.bashrc"; SRC=".bashrc"
+# Add to PATH
+if ! echo "$PATH" | grep -q "$HOME/.local/bin"; then
+    for rc in "$HOME/.bashrc" "$HOME/.zshrc" "$HOME/.profile"; do
+        [ -f "$rc" ] && ! grep -q ".local/bin" "$rc" && echo 'export PATH="$HOME/.local/bin:$PATH"' >> "$rc" || true
+    done
+    export PATH="$HOME/.local/bin:$PATH"
 fi
 
-echo -e "\n${GREEN}tasklynx ${VERSION} installed to ${BINARY_PATH}${NC}"
-echo -e "${YELLOW}Restart shell or run: source ~/${SRC}${NC}\n"
+echo -e "\n${GREEN}✓ tasklynx installed to ${BINARY_PATH}${NC}"
+echo -e "${YELLOW}Run 'source ~/.bashrc' or restart terminal${NC}\n"

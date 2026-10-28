@@ -193,3 +193,27 @@ See [SECURITY.md](SECURITY.md).
 ## License
 
 [MIT](LICENSE) © 2026 RK Riad Khan
+
+## NixOS / Nix
+
+```bash
+# Run directly
+nix run github:peekstore/tasklynx
+
+# Install to profile
+nix profile install github:peekstore/tasklynx
+
+# Or add to flake.nix
+```
+
+## Android (Termux)
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/peekstore/tasklynx/main/installer.sh | sh
+```
+
+## MiXOS
+
+```bash
+./build-mixos.sh
+```

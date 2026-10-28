@@ -34,17 +34,9 @@ jobs:
         id: meta
         run: |
           VERSION=""
-          if [ -f ".version" ]; then
-            VERSION=$(cat .version | tr -d '[:space:]')
-          fi
-          if [ -z "$VERSION" ]; then
-            VERSION=$(grep '^version' Cargo.toml | head -1 | cut -d'"' -f2)
-          fi
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v${VERSION}")
-          else
-            TAG="${GITHUB_REF#refs/tags/}"
-          fi
+          if [ -f ".version" ]; then VERSION=$(cat .version | tr -d '[:space:]'); fi
+          if [ -z "$VERSION" ]; then VERSION=$(grep '^version' Cargo.toml | head -1 | cut -d'"' -f2); fi
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v${VERSION}"); else TAG="${GITHUB_REF#refs/tags/}"; fi
           COMMIT=$(git rev-parse --short=8 HEAD)
           if [[ "$TAG" == *"-"* ]]; then PRERELEASE="true"; else PRERELEASE="false"; fi
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
@@ -74,17 +66,11 @@ jobs:
             artifact: tasklynx-linux-arm64
             cross: true
           - target: x86_64-apple-darwin
-            runner: macos-13
+            runner: macos-latest
             artifact: tasklynx-darwin-amd64
           - target: aarch64-apple-darwin
             runner: macos-latest
             artifact: tasklynx-darwin-arm64
-          - target: aarch64-linux-android
-            runner: ubuntu-latest
-            artifact: tasklynx-android-arm64
-          - target: x86_64-linux-android
-            runner: ubuntu-latest
-            artifact: tasklynx-android-amd64
 
     steps:
       - name: Checkout
@@ -100,10 +86,6 @@ jobs:
       - name: Install cross
         if: matrix.cross == true
         run: cargo install cross --git https://github.com/cross-rs/cross --locked
-
-      - name: Install Android tools
-        if: contains(matrix.target, 'android')
-        uses: android-actions/setup-android@v3
 
       - name: Cache cargo
         uses: Swatinem/rust-cache@v2
@@ -176,8 +158,8 @@ jobs:
             echo "| Linux | ARM64 | \`tasklynx-linux-arm64\` |"
             echo "| macOS | AMD64 (Intel) | \`tasklynx-darwin-amd64\` |"
             echo "| macOS | ARM64 (Apple Silicon) | \`tasklynx-darwin-arm64\` |"
-            echo "| Android | ARM64 | \`tasklynx-android-arm64\` |"
-            echo "| Android | AMD64 | \`tasklynx-android-amd64\` |"
+            echo "| Android (Termux) | ARM64 | \`tasklynx-android-arm64\` |"
+            echo "| Android (Termux) | AMD64 | \`tasklynx-android-amd64\` |"
             echo ""
             echo "### Verify Checksum"
             echo "\`\`\`bash"
