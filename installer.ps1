@@ -51,14 +51,18 @@ Write-Host "Tasklynx Installer" -ForegroundColor Cyan
 Write-Host ""
 
 Write-Host "  Checking latest version from GitHub ... " -NoNewline
-$version = $null
-try {
-    $raw = Invoke-RestMethod -Uri "https://raw.githubusercontent.com/${GitHubRepo}/${RepoBranch}/.version" -UseBasicParsing
-    $version = "$raw".Trim()
-} catch {}
+$version = $env:TASKLYNX_VERSION
+if ($version) { $version = "$version".Trim() }
 if (-not $version) {
     try {
-        $version = (Invoke-RestMethod -Uri "https://api.github.com/repos/${GitHubRepo}/releases/latest" -UseBasicParsing).tag_name
+        $raw = Invoke-RestMethod -Uri "https://raw.githubusercontent.com/${GitHubRepo}/${RepoBranch}/.version" -UseBasicParsing
+        $version = "$raw".Trim()
+    } catch {}
+}
+if (-not $version) {
+    try {
+        $version = (Invoke-RestMethod -Uri "https://api.github.com/repos/${GitHubRepo}/releases?per_page=10" -UseBasicParsing |
+            Where-Object { -not $_.draft } | Select-Object -First 1).tag_name
     } catch {}
 }
 if (-not $version) { $version = "v0.0.1-beta-2" }
