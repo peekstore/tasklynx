@@ -6,6 +6,30 @@ PROJECT_NAME="tasklynx"
 VERSION_URL="https://raw.githubusercontent.com/peekstore/${PROJECT_NAME}/main/.version"
 RELEASE_URL="https://github.com/peekstore/${PROJECT_NAME}/releases/download"
 
+IS_UNINSTALL=false
+for arg in "$@"; do
+    case "$arg" in
+        --selfuninstall|--uninstall|-u) IS_UNINSTALL=true ;;
+    esac
+done
+
+if [ "$IS_UNINSTALL" = true ]; then
+    if [ -n "${XDG_CONFIG_HOME:-}" ]; then
+        BIN_DIR="$XDG_CONFIG_HOME/peekstore/${PROJECT_NAME}/bin"
+    else
+        BIN_DIR="$HOME/.config/peekstore/${PROJECT_NAME}/bin"
+    fi
+    echo ""
+    echo "Tasklynx Uninstaller"
+    echo ""
+    [ -f "${BIN_DIR}/${PROJECT_NAME}" ] && rm -f "${BIN_DIR}/${PROJECT_NAME}" && echo "  Removed ${BIN_DIR}/${PROJECT_NAME}"
+    [ -e "${BIN_DIR}/tx" ] && rm -f "${BIN_DIR}/tx" && echo "  Removed ${BIN_DIR}/tx"
+    [ -d "$BIN_DIR" ] && rmdir "$BIN_DIR" 2>/dev/null || true
+    echo ""
+    echo "Tasklynx uninstalled. Restart your terminal to apply PATH changes."
+    exit 0
+fi
+
 VERSION=""
 if command -v curl >/dev/null 2>&1; then
     VERSION=$(curl -fsSL "$VERSION_URL" 2>/dev/null | tr -d ' \n\r' || true)
@@ -47,12 +71,38 @@ case "$OS_LOWER" in
 esac
 
 case "$OS" in
-    linux|android) DOWNLOAD_NAME="${PROJECT_NAME}-linux-${ARCH}" ;;
+    android)
+        # Android/Termux uses ABI names, not amd64/arm64.
+        ABI=""
+        if command -v getprop >/dev/null 2>&1; then
+            ABI="$(getprop ro.product.cpu.abi 2>/dev/null || true)"
+        fi
+        case "$ABI" in
+            arm64-v8a) ABI="arm64-v8a" ;;
+            x86_64) ABI="x86_64" ;;
+            armeabi-v7a|armeabi) ABI="armeabi-v7a" ;;
+        esac
+        if [ -z "$ABI" ]; then
+            case "$ARCH_NAME" in
+                aarch64|arm64) ABI="arm64-v8a" ;;
+                x86_64|amd64) ABI="x86_64" ;;
+                armv7l|armv8l) ABI="armeabi-v7a" ;;
+                *) echo "Unsupported Android ABI: $ARCH_NAME"; exit 1 ;;
+            esac
+        fi
+        DOWNLOAD_NAME="${PROJECT_NAME}-android-${ABI}"
+        ;;
+    linux) DOWNLOAD_NAME="${PROJECT_NAME}-linux-${ARCH}" ;;
     darwin) DOWNLOAD_NAME="${PROJECT_NAME}-darwin-${ARCH}" ;;
     *) echo "Unsupported OS: $OS"; exit 1 ;;
 esac
 
 DOWNLOAD_URL="${RELEASE_URL}/${VERSION}/${DOWNLOAD_NAME}"
+
+if [ "${DRY_RUN:-}" = "1" ]; then
+    echo "$DOWNLOAD_NAME"
+    exit 0
+fi
 
 if [ -n "${XDG_CONFIG_HOME:-}" ]; then
     BIN_DIR="$XDG_CONFIG_HOME/peekstore/${PROJECT_NAME}/bin"

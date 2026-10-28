@@ -73,10 +73,13 @@ jobs:
             artifact: tasklynx-darwin-arm64
           - target: aarch64-linux-android
             runner: ubuntu-latest
-            artifact: tasklynx-linux-arm64
+            artifact: tasklynx-android-arm64-v8a
           - target: x86_64-linux-android
             runner: ubuntu-latest
-            artifact: tasklynx-linux-amd64
+            artifact: tasklynx-android-x86_64
+          - target: armv7-linux-androideabi
+            runner: ubuntu-latest
+            artifact: tasklynx-android-armeabi-v7a
 
     steps:
       - name: Checkout
@@ -116,14 +119,37 @@ jobs:
       - name: Build Android (Termux)
         if: contains(matrix.target, 'android')
         env:
-          ANDROID_NDK_ROOT: ${{ steps.setup-ndk.outputs.ndk-path }}
-          ANDROID_NDK_HOME: ${{ steps.setup-ndk.outputs.ndk-path }}
-          CC_aarch64_linux_android: ${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android24-clang
-          CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER: ${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android24-clang
-          CC_x86_64_linux_android: ${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/bin/x86_64-linux-android24-clang
-          CARGO_TARGET_X86_64_LINUX_ANDROID_LINKER: ${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/bin/x86_64-linux-android24-clang
+          NDK: ${{ steps.setup-ndk.outputs.ndk-path }}
         run: |
+          TOOLCHAIN="$NDK/toolchains/llvm/prebuilt/linux-x86_64/bin"
+          export PATH="$TOOLCHAIN:$PATH"
+          export ANDROID_NDK_ROOT="$NDK"
+          export ANDROID_NDK_HOME="$NDK"
+          case "${{ matrix.target }}" in
+            aarch64-linux-android)
+              CLANG="$TOOLCHAIN/aarch64-linux-android21-clang"
+              export CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER="$CLANG"
+              export CARGO_TARGET_AARCH64_LINUX_ANDROID_AR="$TOOLCHAIN/llvm-ar"
+              export CC_aarch64_linux_android="$CLANG"
+              export AR_aarch64_linux_android="$TOOLCHAIN/llvm-ar"
+              ;;
+            x86_64-linux-android)
+              CLANG="$TOOLCHAIN/x86_64-linux-android21-clang"
+              export CARGO_TARGET_X86_64_LINUX_ANDROID_LINKER="$CLANG"
+              export CARGO_TARGET_X86_64_LINUX_ANDROID_AR="$TOOLCHAIN/llvm-ar"
+              export CC_x86_64_linux_android="$CLANG"
+              export AR_x86_64_linux_android="$TOOLCHAIN/llvm-ar"
+              ;;
+            armv7-linux-androideabi)
+              CLANG="$TOOLCHAIN/armv7a-linux-androideabi21-clang"
+              export CARGO_TARGET_ARMV7_LINUX_ANDROIDEABI_LINKER="$CLANG"
+              export CARGO_TARGET_ARMV7_LINUX_ANDROIDEABI_AR="$TOOLCHAIN/llvm-ar"
+              export CC_armv7_linux_androideabi="$CLANG"
+              export AR_armv7_linux_androideabi="$TOOLCHAIN/llvm-ar"
+              ;;
+          esac
           cargo build --release --target ${{ matrix.target }}
+          file "target/${{ matrix.target }}/release/tasklynx"
 
       - name: Package
         shell: bash
@@ -183,8 +209,9 @@ jobs:
             echo "| Linux | ARM64 | \`tasklynx-linux-arm64\` |"
             echo "| macOS | AMD64 (Intel) | \`tasklynx-darwin-amd64\` |"
             echo "| macOS | ARM64 (Apple Silicon) | \`tasklynx-darwin-arm64\` |"
-            echo "| Android (Termux) | ARM64 | \`tasklynx-linux-arm64\` |"
-            echo "| Android (Termux) | AMD64 | \`tasklynx-linux-amd64\` |"
+            echo "| Android (Termux) | arm64-v8a | \`tasklynx-android-arm64-v8a\` |"
+            echo "| Android (Termux) | armeabi-v7a | \`tasklynx-android-armeabi-v7a\` |"
+            echo "| Android (Termux) | x86_64 | \`tasklynx-android-x86_64\` |"
             echo ""
             echo "### Verify Checksum"
             echo "\`\`\`bash"

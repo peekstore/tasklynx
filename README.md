@@ -48,6 +48,7 @@ Tasklynx is a local-first task manager built in Rust (`edition = "2021"`) with `
 - [Installation](#installation)
 - [Quick Start](#quick-start)
 - [Usage Examples](#usage-examples)
+- [Uninstall](#uninstall)
 - [Documentation](#documentation)
 - [Interface](#interface)
 - [Architecture](#architecture)
@@ -123,6 +124,34 @@ tx export --format md
 tx web --host 127.0.0.1 --port 8787
 tx self update
 ```
+
+## Uninstall
+
+### Using the self command
+```bash
+tx self uninstall
+```
+
+### Using the installer script (Linux / macOS / Termux)
+```bash
+curl -fsSL https://raw.githubusercontent.com/peekstore/tasklynx/main/installer.sh | sh -s -- --selfuninstall
+```
+
+### Using the installer script (Windows PowerShell)
+```powershell
+& ([scriptblock]::Create((irm https://raw.githubusercontent.com/peekstore/tasklynx/main/installer.ps1))) --selfuninstall
+```
+
+### Nix / NixOS
+```bash
+nix profile remove tasklynx
+```
+
+### Manual removal
+```bash
+rm -rf ~/.config/peekstore/tasklynx
+```
+Remove the added `export PATH="$HOME/.config/peekstore/tasklynx/bin:$PATH"` line from your shell rc file (`.bashrc`, `.zshrc`, etc.).
 
 ## Documentation
 
@@ -202,19 +231,3 @@ See [SECURITY.md](SECURITY.md).
 
 - [@rkriad585](https://github.com/rkriad585)
 - [@peekstore](https://github.com/peekstore)
-
-## Uninstall
-
-### Using self command
-```bash
-tx self uninstall
-```
-
-### Using installer script
-```bash
-curl -fsSL https://raw.githubusercontent.com/peekstore/tasklynx/main/installer.sh | sh -s -- --selfuninstall
-```
-
-```powershell
-irm https://raw.githubusercontent.com/peekstore/tasklynx/main/installer.ps1 | iex -ArgumentList "--selfuninstall"
-```
