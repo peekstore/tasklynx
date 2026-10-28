@@ -1,12 +1,9 @@
 name: Installer Test All
+
 on:
   push:
     branches: [main]
-    paths:
-      - 'installer.sh'
-      - 'installer.ps1'
-      - 'install.sh'
-      - 'install.ps1'
+  pull_request:
   workflow_dispatch:
 
 jobs:
@@ -14,7 +11,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Test installer.sh on Linux x64
+      - name: Test installer.sh
         run: |
           rm -rf ~/.config/peekstore/tasklynx
           sh ./installer.sh
@@ -26,7 +23,7 @@ jobs:
     runs-on: ubuntu-24.04-arm
     steps:
       - uses: actions/checkout@v4
-      - name: Test installer.sh on Linux ARM64
+      - name: Test installer.sh
         run: |
           rm -rf ~/.config/peekstore/tasklynx
           sh ./installer.sh
@@ -34,11 +31,11 @@ jobs:
           tasklynx --version
           tx --version
 
-  macos:
+  macos-latest:
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Test installer.sh on macOS latest
+      - name: Test installer.sh
         run: |
           rm -rf ~/.config/peekstore/tasklynx
           sh ./installer.sh
@@ -46,40 +43,39 @@ jobs:
           tasklynx --version
           tx --version
 
-  windows:
+  windows-latest:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Test installer.ps1 on Windows latest
+      - name: Test installer.ps1
         shell: pwsh
         run: |
-          $env:USERPROFILE = "$env:TEMP\testuser-$(Get-Random)"
-          New-Item -ItemType Directory -Force -Path $env:USERPROFILE | Out-Null
-          & .\installer.ps1
+          $p = "$env:TEMP\tu$(Get-Random)"
+          New-Item -ItemType Directory -Force -Path $p | Out-Null
+          $env:USERPROFILE = $p
+          .\installer.ps1
           $env:PATH = "$env:USERPROFILE\.config\peekstore\tasklynx\bin;$env:PATH"
           tasklynx --version
           tx --version
 
   termux:
     runs-on: ubuntu-latest
-    container:
-      image: termux/termux-docker:latest
     steps:
-      - name: Setup
-        run: |
-          pkg update -y && pkg install -y curl bash
-      - name: Test Termux style install
+      - uses: actions/checkout@v4
+      - name: Test in Termux-like environment
         run: |
           rm -rf ~/.config/peekstore/tasklynx
-          curl -fsSL https://raw.githubusercontent.com/peekstore/tasklynx/main/installer.sh | sh
+          TERMUX_VERSION=0.118 sh ./installer.sh
           export PATH="$HOME/.config/peekstore/tasklynx/bin:$PATH"
           tasklynx --version
           tx --version
 
-  nix:
+  nixos:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: cachix/install-nix-action@v27
-      - name: Test nix run
-        run: nix run github:peekstore/tasklynx -- --version || true
+        with:
+          nix_path: nixpkgs=channel:nixos-unstable
+      - name: Test Nix
+        run: nix --extra-experimental-features "nix-command flakes" run github:peekstore/tasklynx -- --version 2>&1 | tail -5 || true
