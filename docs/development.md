@@ -52,8 +52,8 @@ assets/       # Embedded web assets and icons
 
 Releases are automated via GitHub Actions. Push a version tag:
 ```bash
-git tag v0.0.1-beta-1
-git push origin v0.0.1-beta-1
+git tag v0.0.1-beta-2
+git push origin v0.0.1-beta-2
 ```
 
 ## Contributing

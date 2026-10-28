@@ -10,7 +10,7 @@
 
 <p align="center">
   <img src="https://img.shields.io/badge/Language-Rust-orange.svg" alt="Rust">
-  <img src="https://img.shields.io/badge/Version-0.0.1--beta--1-blue.svg" alt="Version">
+  <img src="https://img.shields.io/badge/Version-0.0.1--beta--2-blue.svg" alt="Version">
   <img src="https://img.shields.io/github/actions/workflow/status/peekstore/tasklynx/ci.yml?branch=main&label=Build" alt="Build Status">
   <img src="https://img.shields.io/badge/License-MIT-green.svg" alt="License">
   <img src="https://img.shields.io/badge/Made%20by-rkriad585-red.svg" alt="Made by rkriad585">

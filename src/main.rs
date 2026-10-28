@@ -26,7 +26,7 @@ enum Cmd {
         project: String,
         #[arg(short, long, value_delimiter = ',')]
         tag: Vec<String>,
-        #[arg(short, long, default_value = "normal")]
+        #[arg(short = 'P', long, default_value = "normal")]
         priority: String,
         #[arg(long)]
         due: Option<String>,
