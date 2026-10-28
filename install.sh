@@ -13,6 +13,45 @@ curl -fL "$URL" -o "$TMP"; chmod +x "$TMP"; sudo install -m 0755 "$TMP" /usr/loc
 printf 'Installed tasklynx %s\n' "$VERSION"
 
 # Install desktop entry and icon
+ICON_DIR="$HOME/.local/share/icons/hicolor/256x256/apps"
+SCALABLE_DIR="$HOME/.local/share/icons/hicolor/scalable/apps"
+PIXMAP_DIR="$HOME/.local/share/pixmaps"
+DESK_DIR="$HOME/.local/share/applications"
+BIN_DIR="/usr/local/bin"
+if [ -w "$BIN_DIR" ] && [ "$(id -u)" != "0" ]; then
+  BIN_DIR="$HOME/.local/bin"
+  mkdir -p "$BIN_DIR"
+  export PATH="$BIN_DIR:$PATH"
+fi
+mkdir -p "$ICON_DIR" "$SCALABLE_DIR" "$PIXMAP_DIR" "$DESK_DIR"
+curl -fsSL "https://raw.githubusercontent.com/${REPO}/main/assets/tasklynx.png" -o "$PIXMAP_DIR/tasklynx.png" 2>/dev/null || cp "$TMP/../assets/tasklynx.png" "$PIXMAP_DIR/tasklynx.png" 2>/dev/null || true
+cp "$PIXMAP_DIR/tasklynx.png" "$ICON_DIR/tasklynx.png" 2>/dev/null || true
+curl -fsSL "https://raw.githubusercontent.com/${REPO}/main/assets/tasklynx.svg" -o "$SCALABLE_DIR/tasklynx.svg" 2>/dev/null || cp "$TMP/../assets/tasklynx.svg" "$SCALABLE_DIR/tasklynx.svg" 2>/dev/null || true
+cat > "$DESK_DIR/tasklynx.desktop" << DESK
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Tasklynx
+GenericName=Task Manager
+Comment=Developer-first local task manager with terminal UI
+Exec=tasklynx
+Icon=tasklynx
+Terminal=true
+Categories=Development;Utility;Office;
+Keywords=tasks;todo;kanban;cli;
+StartupNotify=true
+DESK
+chmod +x "$DESK_DIR/tasklynx.desktop" 2>/dev/null || true
+update-desktop-database "$DESK_DIR" 2>/dev/null || true
+gtk-update-icon-cache -f -t "$HOME/.local/share/icons/hicolor" 2>/dev/null || true
+command -v xdg-icon-resource >/dev/null 2>&1 && xdg-icon-resource install --novendor --size 256 "$ICON_DIR/tasklynx.png" tasklynx 2>/dev/null || true
+if [ -d "$BIN_DIR" ] && [ "$(basename "$BIN_DIR")" = ".local" ]; then
+  if ! echo "$PATH" | grep -q "$HOME/.local/bin"; then
+    echo "Add $HOME/.local/bin to your PATH if not already present"
+  fi
+fi
+
+# Install desktop entry and icon
 if command -v xdg-desktop-menu >/dev/null 2>&1 || [ "$(uname -s)" = "Linux" ]; then
   ICON_DIR="$HOME/.local/share/icons/hicolor/256x256/apps"
   DESK_DIR="$HOME/.local/share/applications"
