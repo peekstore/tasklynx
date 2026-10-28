@@ -402,14 +402,25 @@ async fn main() -> Result<()> {
                 println!("Checking for updates...");
                 let _ = std::process::Command::new("sh")
                     .arg("-c")
-                    .arg("curl -sL https://raw.githubusercontent.com/peekstore/tasklynx/main/install.sh | bash")
+                    .arg("curl -fsSL https://raw.githubusercontent.com/peekstore/tasklynx/main/installer.sh | sh")
                     .status();
             }
             SelfSubCmd::Uninstall => {
                 let exe = std::env::current_exe()?;
                 println!("Removing {}", exe.display());
+                if let Some(dir) = exe.parent() {
+                    for name in ["tx", "tx.exe"] {
+                        let alias = dir.join(name);
+                        if alias.exists() {
+                            let _ = std::fs::remove_file(&alias);
+                        }
+                    }
+                }
+                let _ = std::fs::remove_file(&exe);
+                if let Some(dir) = exe.parent() {
+                    let _ = std::fs::remove_dir(dir);
+                }
                 println!("Note: config/data in config and data dirs remain.");
-                let _ = std::fs::remove_file(exe);
             }
         },
     }
