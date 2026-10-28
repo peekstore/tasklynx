@@ -1,233 +1,250 @@
-<p align="center">
-  <img src="logo/logo.svg" alt="Tasklynx Logo" height="150">
-</p>
+<div align="center">
+  <a href="https://github.com/peekstore/tasklynx">
+    <img src="logo/logo.svg" alt="Tasklynx logo" width="140" height="140">
+  </a>
 
-<h1 align="center">Tasklynx</h1>
+  <h1>Tasklynx</h1>
 
-<p align="center">
-  <strong>Developer-first local task manager with Git-style workflows, terminal Kanban board, and responsive web dashboard.</strong>
-</p>
+  <p><strong>A local-first task manager for developers — Git-style branches, a terminal Kanban board, and a fast web dashboard.</strong></p>
 
-<p align="center">
-  <img src="https://img.shields.io/badge/Language-Rust-orange.svg" alt="Rust">
-  <img src="https://img.shields.io/badge/Version-0.0.1--beta--2-blue.svg" alt="Version">
-  <img src="https://img.shields.io/github/actions/workflow/status/peekstore/tasklynx/ci.yml?branch=main&label=Build" alt="Build Status">
-  <img src="https://img.shields.io/badge/License-MIT-green.svg" alt="License">
-  <img src="https://img.shields.io/badge/Made%20by-rkriad585-red.svg" alt="Made by rkriad585">
-</p>
+  <p>
+    <a href="https://github.com/peekstore/tasklynx/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/peekstore/tasklynx?style=flat-square&color=ff453a"></a>
+    <a href="https://github.com/peekstore/tasklynx/actions/workflows/ci.yml"><img alt="CI" src="https://img.shields.io/github/actions/workflow/status/peekstore/tasklynx/ci.yml?branch=main&style=flat-square"></a>
+    <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/github/license/peekstore/tasklynx?style=flat-square"></a>
+    <img alt="Platforms" src="https://img.shields.io/badge/platform-linux%20%7C%20macos%20%7C%20windows%20%7C%20android-8f949e?style=flat-square">
+  </p>
 
-<p align="center">
-  <img src="https://img.shields.io/github/stars/peekstore/tasklynx?style=for-the-badge&label=Stars&color=%23ff3030" alt="GitHub stars">
-  <img src="https://img.shields.io/github/forks/peekstore/tasklynx?style=for-the-badge&label=Forks&color=%23ff3030" alt="GitHub forks">
-  <img src="https://img.shields.io/github/watchers/peekstore/tasklynx?style=for-the-badge&label=Watchers&color=%23ff3030" alt="GitHub watchers">
-  <img src="https://img.shields.io/github/issues/peekstore/tasklynx?style=for-the-badge&label=Issues&color=%23ff3030" alt="GitHub issues">
-  <img src="https://img.shields.io/github/issues-pr/peekstore/tasklynx?style=for-the-badge&label=Pull%20requests&color=%23ff3030" alt="GitHub pull requests">
-  <img src="https://img.shields.io/github/last-commit/peekstore/tasklynx?style=for-the-badge&label=Last%20commit&color=%23ff3030" alt="Last commit">
-</p>
+  <p>
+    <a href="https://peekstore.github.io/tasklynx/">Documentation</a> ·
+    <a href="https://github.com/peekstore/tasklynx/releases">Releases</a> ·
+    <a href="https://github.com/peekstore/tasklynx/issues">Issues</a> ·
+    <a href="https://github.com/peekstore/tasklynx/tree/main/docs">Docs source</a>
+  </p>
+</div>
+
+---
 
 ## Overview
 
-Tasklynx is a local-first task manager built in Rust (`edition = "2021"`) with `clap` CLI, `ratatui`/`crossterm` TUI, and `axum` web dashboard. Tasks are stored as atomic JSON in the platform data directory with Git-style branch scoping. It supports projects, tags, priorities, due dates, search, export (JSON/Markdown), and self-update/uninstall.
+Tasklynx keeps your tasks in a single local JSON file, with no account, no daemon, and no network dependency. It borrows the parts of a Git workflow that are useful for planning — branches for parallel streams of work, short prefix IDs, and fast filtering — and gives you three ways to use it:
 
-## Screenshot
+- **CLI** (`tasklynx` or the short alias `tx`) for scripting and quick capture.
+- **TUI** (`tx board`) for an interactive Kanban board in the terminal.
+- **Web** (`tx web`) for a responsive browser dashboard on `127.0.0.1`.
 
-<p align="center">
-  <img src="Screenshots/home.png" alt="home screen" width="80%">
-</p>
+Everything is written atomically to disk, so a crash can't leave a half-written task store.
 
-<p align="center">
-  <em>More screenshots:
-    <a href="docs/screenshots.md">View all screenshots</a>
-  </em>
-</p>
+## Features
 
-## Table of Contents
+- **Local-first** — tasks live on your machine; nothing is sent anywhere.
+- **Git-style branches** — keep work for different features or releases separate.
+- **Short IDs** — any unique prefix of a task UUID works in commands.
+- **Priorities and due dates** — `low`, `normal`, `high`, `urgent`, with overdue detection.
+- **Projects and tags** — group work and filter instantly.
+- **Three interfaces** — CLI, terminal Kanban TUI, and a web dashboard.
+- **Export** — JSON or Markdown for backups and sharing.
+- **Cross-platform** — Linux, macOS, Windows, and Android (Termux), with ARM and x86 builds.
+- **Single binary** — no runtime dependencies; `tx self update` keeps it current.
 
-- [Key Features](#key-features)
-- [GitHub Statistics](#github-statistics)
-- [Installation](#installation)
-- [Quick Start](#quick-start)
-- [Usage Examples](#usage-examples)
-- [Uninstall](#uninstall)
-- [Documentation](#documentation)
-- [Interface](#interface)
-- [Architecture](#architecture)
-- [Requirements](#requirements)
-- [Prerequisites](#prerequisites)
-- [Development](#development)
-- [Contributing](#contributing)
-- [Security](#security)
-- [License](#license)
+## Screenshots
 
-## Key Features
+| Terminal board | Web dashboard |
+| --- | --- |
+| ![Terminal Kanban board](Screenshots/board.png) | ![Web dashboard](Screenshots/web.png) |
 
-- `tasklynx` / `tx` CLI with subcommands (init, add, list, complete, reopen, doing, delete, edit, duplicate, search, today, stats, branch, export, web, board, config, self)
-- Ratatui terminal Kanban board (`tx board`)
-- Local atomic JSON persistence via `src/store.rs`
-- Git-style task branches (list/create/switch/delete)
-- Projects, tags, priorities (`low|normal|high|urgent`), due dates with overdue detection
-- Search, agenda (`tx today`), statistics
-- Task editing/duplication, branch-scoped filtering
-- JSON and Markdown export
-- Embedded responsive web dashboard (`src/web.rs`, `assets/index.html`)
-- Configurable web/theme options
-- Embedded web assets (single binary)
-- Windows icon embedding via `build.rs`
-- Cross-platform release targets (Linux, macOS, Windows, Android/Termux)
-- Self update/uninstall (`tx self update|uninstall`)
-- Installers (`installer.sh`, `installer.ps1`), Nix/NixOS support, MiXOS build script
+More images in [`Screenshots/`](Screenshots) and the [screenshots page](https://peekstore.github.io/tasklynx/screenshots/).
 
 ## Installation
 
-### One-line installer (Linux/macOS/Termux)
+### Linux / macOS / Termux
+
 ```bash
 curl -fsSL https://raw.githubusercontent.com/peekstore/tasklynx/main/installer.sh | sh
 ```
 
-### One-line installer (Windows PowerShell)
+The installer places `tasklynx` and the `tx` alias in
+`${XDG_CONFIG_HOME:-$HOME/.config}/peekstore/tasklynx/bin` and adds that directory to your shell `PATH`.
+
+Pin a specific version:
+
+```bash
+TASKLYNX_VERSION=v0.0.1-beta-2 \
+  curl -fsSL https://raw.githubusercontent.com/peekstore/tasklynx/main/installer.sh | sh
+```
+
+Preview what would be installed without changing anything:
+
+```bash
+DRY_RUN=1 sh installer.sh
+```
+
+### Windows
+
 ```powershell
 irm https://raw.githubusercontent.com/peekstore/tasklynx/main/installer.ps1 | iex
 ```
 
-### NixOS / Nix
+The installer writes to `%USERPROFILE%\.config\peekstore\tasklynx\bin`, updates `PATH`, and creates a Start Menu shortcut.
+
+### Android (Termux)
+
+Install [Termux](https://termux.dev/) from F-Droid, then run the Linux installer:
+
 ```bash
-nix run github:peekstore/tasklynx
-nix profile install github:peekstore/tasklynx
+pkg install curl
+curl -fsSL https://raw.githubusercontent.com/peekstore/tasklynx/main/installer.sh | sh
 ```
 
+The installer detects your CPU ABI (`arm64-v8a`, `armeabi-v7a`, or `x86_64`) and downloads the matching build. To cross-compile from a desktop, use [`build-android-termux.sh`](build-android-termux.sh).
+
+### Nix
+
+```bash
+nix run github:peekstore/tasklynx -- --version
+```
+
+### Manual download
+
+Grab an archive for your platform from [Releases](https://github.com/peekstore/tasklynx/releases) and put the binary on your `PATH`.
+
 ### From source
+
 ```bash
 git clone https://github.com/peekstore/tasklynx.git
 cd tasklynx
 cargo build --release
+install -Dm755 target/release/tasklynx ~/.local/bin/tasklynx
 ```
 
-## Quick Start
+Requires Rust 1.70 or newer.
+
+## Quick start
 
 ```bash
-tx init
-tx add "Fix login bug" --project website --tag bug,auth --priority high
-tx list
-tx board
-tx web
+tx init                                              # create the data store and config
+tx add "Implement authentication" \
+  --project api --tag backend,auth --priority high --due 2026-12-31
+tx list                                              # tasks on the current branch
+tx board                                             # terminal Kanban board
+tx web                                               # dashboard at http://127.0.0.1:8787
+tx doing <id>                                        # mark a task in progress
+tx complete <id>                                     # mark a task done
 ```
 
-## Usage Examples
+### Branches
 
 ```bash
-tx branch create feature/auth
-tx branch switch feature/auth
-tx edit <id> --priority urgent --add-tag blocking
+tx branch create feature-auth
+tx branch switch feature-auth
+tx list                    # only tasks on feature-auth
+tx list --all              # tasks on every branch
+tx branch switch main
+tx branch delete feature-auth
+```
+
+### Search, export, and stats
+
+```bash
 tx search auth
 tx today
-tx export --format md
-tx web --host 127.0.0.1 --port 8787
-tx self update
+tx stats
+tx export --format json > tasks.json
+tx export --format md > TASKS.md
 ```
 
-## Uninstall
+## CLI at a glance
 
-### Using the self command
-```bash
-tx self uninstall
-```
-
-### Using the installer script (Linux / macOS / Termux)
-```bash
-curl -fsSL https://raw.githubusercontent.com/peekstore/tasklynx/main/installer.sh | sh -s -- --selfuninstall
-```
-
-### Using the installer script (Windows PowerShell)
-```powershell
-& ([scriptblock]::Create((irm https://raw.githubusercontent.com/peekstore/tasklynx/main/installer.ps1))) --selfuninstall
-```
-
-### Nix / NixOS
-```bash
-nix profile remove tasklynx
-```
-
-### Manual removal
-```bash
-rm -rf ~/.config/peekstore/tasklynx
-```
-Remove the added `export PATH="$HOME/.config/peekstore/tasklynx/bin:$PATH"` line from your shell rc file (`.bashrc`, `.zshrc`, etc.).
-
-## Documentation
-
-| Document | Description |
+| Command | Description |
 | --- | --- |
-| [docs/index.md](docs/index.md) | Documentation home |
-| [docs/getting-started.md](docs/getting-started.md) | Setup and first steps |
-| [docs/installation.md](docs/installation.md) | Installation methods |
-| [docs/cli.md](docs/cli.md) | CLI command reference |
-| [docs/configuration.md](docs/configuration.md) | Configuration and theming |
-| [docs/architecture.md](docs/architecture.md) | Codebase architecture |
-| [docs/development.md](docs/development.md) | Development workflow |
-| [docs/deployment.md](docs/deployment.md) | Release/deployment |
-| [docs/screenshots.md](docs/screenshots.md) | Screenshots gallery |
-| [docs/troubleshooting.md](docs/troubleshooting.md) | Troubleshooting |
-| [docs/faq.md](docs/faq.md) | Frequently asked questions |
+| `tx init` | Initialize the data store and config |
+| `tx add <title>` | Add a task (`--project`, `--tag`, `--priority`, `--due`) |
+| `tx list` | List tasks (`--project`, `--tag`, `--status`, `--search`, `--all`) |
+| `tx doing <id>` | Mark a task in progress |
+| `tx complete <id>` | Mark a task done |
+| `tx reopen <id>` | Reopen a completed task |
+| `tx edit <id>` | Edit title, description, priority, project, due date, or tags |
+| `tx duplicate <id>` | Duplicate a task |
+| `tx delete <id>` | Delete a task |
+| `tx search <query>` | Search titles, descriptions, and tags |
+| `tx today` | Show tasks due today or overdue |
+| `tx stats` | Show task and branch totals |
+| `tx branch <list\|create\|switch\|delete>` | Manage branches |
+| `tx export --format <json\|md>` | Export tasks |
+| `tx board` | Open the terminal Kanban board |
+| `tx web` | Start the web dashboard |
+| `tx config <init\|show>` | Manage configuration |
+| `tx self <update\|uninstall>` | Manage the installation |
 
-## Interface
+Run `tx <command> --help` for the full flag list. See the [CLI reference](https://peekstore.github.io/tasklynx/cli/).
 
-- **CLI**: `tasklynx` / `tx` (clap derive)
-- **TUI**: ratatui Kanban board
-- **Web**: Axum server serving embedded HTML/JS
+## Configuration
 
-## Architecture
+Configuration lives at:
 
-```mermaid
-graph TD
-  A[main.rs - CLI] --> B[model.rs]
-  A --> C[store.rs]
-  A --> D[tui.rs]
-  A --> E[web.rs]
-  A --> F[config.rs]
-  C --> B
-  D --> B
-  E --> B
-  F --> B
-  C --> G[(tasks.json)]
-  F --> H[(config.toml)]
+```
+~/.config/peekstore/tasklynx/config.toml
 ```
 
-Source files: `src/main.rs`, `src/model.rs`, `src/store.rs`, `src/tui.rs`, `src/web.rs`, `src/config.rs`, `build.rs`.
+On Windows this is `%USERPROFILE%\.config\peekstore\tasklynx\config.toml`; on macOS the same `~/.config` convention is used. `XDG_CONFIG_HOME` is respected.
 
-## Requirements
+Create or inspect it with:
 
-- Rust toolchain (edition 2021)
-- Dependencies as in `Cargo.toml`
+```bash
+tx config init
+tx config show
+```
 
-## Prerequisites
+```toml
+host = "127.0.0.1"
+port = 8787
+accent = "#ff453a"
+background = "#070809"
+panel = "#101216"
+foreground = "#f5f5f5"
+muted = "#8f949e"
+font_family = "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace"
+default_project = "default"
+```
 
-- `cargo`, `rustc` for building from source
+### Data storage
+
+Tasks are stored as `tasks.json`:
+
+| Platform | Path |
+| --- | --- |
+| Linux | `~/.local/share/tasklynx/tasks.json` |
+| macOS | `~/Library/Application Support/tasklynx/tasks.json` |
+| Windows | `%LOCALAPPDATA%\tasklynx\tasks.json` |
+
+Set `TASKLYNX_HOME` to relocate the store; the file is written to `$TASKLYNX_HOME/tasklynx/tasks.json`.
 
 ## Development
 
 ```bash
-git clone https://github.com/peekstore/tasklynx.git
-cd tasklynx
 cargo build
 cargo test
 cargo clippy --all-targets -- -D warnings
 cargo fmt --all -- --check
-cargo run -- --help
 ```
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the workflow and [docs/development.md](docs/development.md) for project layout and the release process.
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md).
+Contributions are welcome. Please read [CONTRIBUTING.md](CONTRIBUTING.md) and [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) first. For security issues, follow [SECURITY.md](SECURITY.md).
 
-## Security
+## Brand assets
 
-See [SECURITY.md](SECURITY.md).
+Logos, icons, and banners live in [`tasklynx-logos/`](tasklynx-logos). Use them for articles, packages, and integrations.
 
 ## License
 
-[MIT](LICENSE) © 2026 RK Riad Khan
+Released under the [MIT License](LICENSE). Copyright © 2026 [RK Riad Khan](https://github.com/rkriad585).
 
-## Contributors
-
-- [@rkriad585](https://github.com/rkriad585)
-- [@peekstore](https://github.com/peekstore)
+<div align="center">
+  <sub>
+    Built by <a href="https://github.com/peekstore">peekstore</a> ·
+    <a href="https://peekstore.github.io">Website</a> ·
+    <a href="https://peekstore.github.io/tasklynx">Docs</a>
+  </sub>
+</div>
