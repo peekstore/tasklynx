@@ -1,19 +1,30 @@
 site_name: Tasklynx
 site_description: Developer-first local task manager
-site_url: https://rkriad585.github.io/tasklynx/
-repo_url: https://github.com/rkriad585/tasklynx
+site_url: https://peekstore.github.io/tasklynx/
+repo_url: https://github.com/peekstore/tasklynx
 theme:
-  name: void
-  logo: assets/logo.svg
-  favicon: assets/logo.svg
+  name: material
+  palette:
+    scheme: slate
+    primary: red
+    accent: red
+  logo: logo.svg
+  favicon: logo.svg
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.top
+    - search.suggest
+    - search.highlight
+    - content.code.copy
 plugins:
   - search
-  - void
 markdown_extensions:
   - admonition
   - pymdownx.highlight
   - pymdownx.superfences
   - pymdownx.tabbed
+  - pymdownx.details
 nav:
   - Home: index.md
   - Getting Started: getting-started.md

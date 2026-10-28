@@ -1,1 +1,10 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256"><rect width="256" height="256" rx="48" fill="#070809"/><path fill="#ff453a" d="M48 48h72v72H48zM136 48h72v72h-72zM48 136h72v72H48z"/><path fill="#f5f5f5" d="M136 136h72v72h-72z"/><path fill="#070809" d="M157 157h30v30h-30z"/></svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200">
+  <g transform="translate(40,30)">
+    <line x1="40" y1="20" x2="40" y2="80" stroke="#f5f5f5" stroke-width="14" stroke-linecap="square"/>
+    <line x1="40" y1="50" x2="90" y2="50" stroke="#f5f5f5" stroke-width="14" stroke-linecap="square"/>
+    <circle cx="40" cy="20" r="12" fill="none" stroke="#f5f5f5" stroke-width="14"/>
+    <circle cx="40" cy="80" r="12" fill="none" stroke="#f5f5f5" stroke-width="14"/>
+    <circle cx="90" cy="50" r="12" fill="none" stroke="#f5f5f5" stroke-width="14"/>
+    <circle cx="40" cy="50" r="6" fill="#f5f5f5"/>
+  </g>
+</svg>

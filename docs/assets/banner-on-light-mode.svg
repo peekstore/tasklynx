@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1326 220" width="1326" height="220">
+  <g id="git-branch" transform="translate(60,30)">
+    <line x1="40" y1="20" x2="40" y2="80" stroke="#111111" stroke-width="14" stroke-linecap="square"/>
+    <line x1="40" y1="50" x2="90" y2="50" stroke="#111111" stroke-width="14" stroke-linecap="square"/>
+    <circle cx="40" cy="20" r="12" fill="none" stroke="#111111" stroke-width="14"/>
+    <circle cx="40" cy="80" r="12" fill="none" stroke="#111111" stroke-width="14"/>
+    <circle cx="90" cy="50" r="12" fill="none" stroke="#111111" stroke-width="14"/>
+    <circle cx="40" cy="50" r="6" fill="#111111"/>
+  </g>
+  <g transform="translate(240,10)">
+    <path d="M12 15 L88 15 M50 15 L50 185" fill="none" stroke="#111111" stroke-width="14" stroke-linecap="square" stroke-linejoin="miter"/>
+  </g>
+  <g transform="translate(368,10)">
+    <path d="M12 185 L56 15 L100 185 M30 115 L82 115" fill="none" stroke="#111111" stroke-width="14" stroke-linecap="square" stroke-linejoin="miter"/>
+  </g>
+  <g transform="translate(508,10)">
+    <path d="M88 15 L12 15 L12 95 L88 95 L88 185 L12 185" fill="none" stroke="#111111" stroke-width="14" stroke-linecap="square" stroke-linejoin="miter"/>
+  </g>
+  <g transform="translate(636,10)">
+    <path d="M12 185 L12 15 M12 85 L102 15 M12 125 L102 185" fill="none" stroke="#111111" stroke-width="14" stroke-linecap="square" stroke-linejoin="miter"/>
+  </g>
+  <g transform="translate(778,10)">
+    <path d="M12 15 L12 185 L88 185" fill="none" stroke="#111111" stroke-width="14" stroke-linecap="square" stroke-linejoin="miter"/>
+  </g>
+  <g transform="translate(906,10)">
+    <path d="M12 15 L56 100 L100 15 M56 100 L56 185" fill="none" stroke="#111111" stroke-width="14" stroke-linecap="square" stroke-linejoin="miter"/>
+  </g>
+  <g transform="translate(1046,10)">
+    <path d="M12 185 L12 15 L100 185 L100 15" fill="none" stroke="#111111" stroke-width="14" stroke-linecap="square" stroke-linejoin="miter"/>
+  </g>
+  <g transform="translate(1186,10)">
+    <path d="M12 15 L88 185 M88 15 L12 185" fill="none" stroke="#111111" stroke-width="14" stroke-linecap="square" stroke-linejoin="miter"/>
+  </g>
+</svg>
