@@ -100,7 +100,8 @@ enum Cmd {
         action: ConfigCmd,
     },
     #[command(name = "self")]
-    Self {
+    #[allow(clippy::enum_variant_names)]
+    SelfCmd {
         #[command(subcommand)]
         action: SelfSubCmd,
     },
@@ -396,7 +397,7 @@ async fn main() -> Result<()> {
             }
             ConfigCmd::Show => println!("{}", toml::to_string_pretty(&config::load()?)?),
         },
-        Cmd::Self { action } => match action {
+        Cmd::SelfCmd { action } => match action {
             SelfSubCmd::Update => {
                 println!("Checking for updates...");
                 let _ = std::process::Command::new("sh")
