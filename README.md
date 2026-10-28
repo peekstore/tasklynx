@@ -16,6 +16,15 @@
   <img src="https://img.shields.io/badge/Made%20by-rkriad585-red.svg" alt="Made by rkriad585">
 </p>
 
+<p align="center">
+  <img src="https://img.shields.io/github/stars/peekstore/tasklynx?style=for-the-badge&label=Stars&color=%23ff3030" alt="GitHub stars">
+  <img src="https://img.shields.io/github/forks/peekstore/tasklynx?style=for-the-badge&label=Forks&color=%23ff3030" alt="GitHub forks">
+  <img src="https://img.shields.io/github/watchers/peekstore/tasklynx?style=for-the-badge&label=Watchers&color=%23ff3030" alt="GitHub watchers">
+  <img src="https://img.shields.io/github/issues/peekstore/tasklynx?style=for-the-badge&label=Issues&color=%23ff3030" alt="GitHub issues">
+  <img src="https://img.shields.io/github/issues-pr/peekstore/tasklynx?style=for-the-badge&label=Pull%20requests&color=%23ff3030" alt="GitHub pull requests">
+  <img src="https://img.shields.io/github/last-commit/peekstore/tasklynx?style=for-the-badge&label=Last%20commit&color=%23ff3030" alt="Last commit">
+</p>
+
 ## Overview
 
 Tasklynx is a local-first task manager built in Rust (`edition = "2021"`) with `clap` CLI, `ratatui`/`crossterm` TUI, and `axum` web dashboard. Tasks are stored as atomic JSON in the platform data directory with Git-style branch scoping. It supports projects, tags, priorities, due dates, search, export (JSON/Markdown), and self-update/uninstall.
@@ -35,6 +44,7 @@ Tasklynx is a local-first task manager built in Rust (`edition = "2021"`) with `
 ## Table of Contents
 
 - [Key Features](#key-features)
+- [GitHub Statistics](#github-statistics)
 - [Installation](#installation)
 - [Quick Start](#quick-start)
 - [Usage Examples](#usage-examples)
@@ -59,16 +69,16 @@ Tasklynx is a local-first task manager built in Rust (`edition = "2021"`) with `
 - Task editing/duplication, branch-scoped filtering
 - JSON and Markdown export
 - Embedded responsive web dashboard (`src/web.rs`, `assets/index.html`)
-- Configurable web/theme options (`src/config.rs`, `src/model.rs`)
+- Configurable web/theme options
 - Embedded web assets (single binary)
 - Windows icon embedding via `build.rs`
-- Cross-platform release targets
+- Cross-platform release targets (Linux, macOS, Windows, Android/Termux)
 - Self update/uninstall (`tx self update|uninstall`)
-- Installers (`installer.sh`, `installer.ps1`)
+- Installers (`installer.sh`, `installer.ps1`), Nix/NixOS support, MiXOS build script
 
 ## Installation
 
-### One-line installer (Linux/macOS)
+### One-line installer (Linux/macOS/Termux)
 ```bash
 curl -fsSL https://raw.githubusercontent.com/peekstore/tasklynx/main/installer.sh | sh
 ```
@@ -78,8 +88,11 @@ curl -fsSL https://raw.githubusercontent.com/peekstore/tasklynx/main/installer.s
 irm https://raw.githubusercontent.com/peekstore/tasklynx/main/installer.ps1 | iex
 ```
 
-### From crates.io <!-- TODO: fill -->
-<!-- TODO: fill --> `cargo install tasklynx` (not verified)
+### NixOS / Nix
+```bash
+nix run github:peekstore/tasklynx
+nix profile install github:peekstore/tasklynx
+```
 
 ### From source
 ```bash
@@ -101,23 +114,14 @@ tx web
 ## Usage Examples
 
 ```bash
-# Branching
 tx branch create feature/auth
 tx branch switch feature/auth
-
-# Editing
 tx edit <id> --priority urgent --add-tag blocking
-
-# Search and agenda
 tx search auth
 tx today
-
-# Export
 tx export --format md
-tx export --format json
-
-# Web
 tx web --host 127.0.0.1 --port 8787
+tx self update
 ```
 
 ## Documentation
@@ -163,7 +167,7 @@ Source files: `src/main.rs`, `src/model.rs`, `src/store.rs`, `src/tui.rs`, `src/
 
 ## Requirements
 
-- Rust toolchain (see `Cargo.toml` edition 2021)
+- Rust toolchain (edition 2021)
 - Dependencies as in `Cargo.toml`
 
 ## Prerequisites
@@ -193,27 +197,3 @@ See [SECURITY.md](SECURITY.md).
 ## License
 
 [MIT](LICENSE) © 2026 RK Riad Khan
-
-## NixOS / Nix
-
-```bash
-# Run directly
-nix run github:peekstore/tasklynx
-
-# Install to profile
-nix profile install github:peekstore/tasklynx
-
-# Or add to flake.nix
-```
-
-## Android (Termux)
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/peekstore/tasklynx/main/installer.sh | sh
-```
-
-## MiXOS
-
-```bash
-./build-mixos.sh
-```
