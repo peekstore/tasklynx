@@ -35,9 +35,9 @@ esac
 DOWNLOAD_URL="${RELEASE_URL}/${VERSION}/${DOWNLOAD_NAME}"
 
 if [ -n "$XDG_CONFIG_HOME" ]; then
-    BIN_DIR="$XDG_CONFIG_HOME/neostore/${PROJECT_NAME}/bin"
+    BIN_DIR="$XDG_CONFIG_HOME/peekstore/${PROJECT_NAME}/bin"
 else
-    BIN_DIR="$HOME/.config/neostore/${PROJECT_NAME}/bin"
+    BIN_DIR="$HOME/.config/peekstore/${PROJECT_NAME}/bin"
 fi
 mkdir -p "$BIN_DIR"
 
@@ -63,7 +63,7 @@ esac
 
 if ! echo "$PATH" | grep -q "$BIN_DIR"; then
     echo "Adding to PATH..."
-    if [ "$SHELL" = "*/fish" ] || [ "$(basename "$SHELL")" = "fish" ]; then
+    if [ "$(basename "$SHELL")" = "fish" ]; then
         echo "set -gx PATH $BIN_DIR \$PATH" >> "$SHELL_RC"
     else
         echo "export PATH=\"\$PATH:$BIN_DIR\"" >> "$SHELL_RC"
