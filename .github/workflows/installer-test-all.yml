@@ -1,0 +1,71 @@
+name: Installer Test All
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'installer.sh'
+      - 'installer.ps1'
+  workflow_dispatch:
+
+jobs:
+  linux-x64:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Test installer.sh on Linux x64
+        run: |
+          rm -rf ~/.config/peekstore/tasklynx
+          sh ./installer.sh
+          export PATH="$HOME/.config/peekstore/tasklynx/bin:$PATH"
+          tasklynx --version
+          tx --version
+
+  linux-arm64:
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v4
+      - name: Test installer.sh on Linux ARM64
+        run: |
+          rm -rf ~/.config/peekstore/tasklynx
+          sh ./installer.sh
+          export PATH="$HOME/.config/peekstore/tasklynx/bin:$PATH"
+          tasklynx --version
+          tx --version
+
+  macos-x64:
+    runs-on: macos-13
+    steps:
+      - uses: actions/checkout@v4
+      - name: Test installer.sh on macOS Intel
+        run: |
+          rm -rf ~/.config/peekstore/tasklynx
+          sh ./installer.sh
+          export PATH="$HOME/.config/peekstore/tasklynx/bin:$PATH"
+          tasklynx --version
+          tx --version
+
+  macos-arm64:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Test installer.sh on macOS ARM64
+        run: |
+          rm -rf ~/.config/peekstore/tasklynx
+          sh ./installer.sh
+          export PATH="$HOME/.config/peekstore/tasklynx/bin:$PATH"
+          tasklynx --version
+          tx --version
+
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Test installer.ps1 on Windows
+        shell: pwsh
+        run: |
+          $env:USERPROFILE = $env:TEMP + "\testuser"
+          New-Item -ItemType Directory -Force -Path $env:USERPROFILE | Out-Null
+          & .\installer.ps1
+          $env:PATH = "$env:USERPROFILE\.config\peekstore\tasklynx\bin;$env:PATH"
+          tasklynx --version
+          tx --version
