@@ -1,65 +1,228 @@
-name: Build Release
+name: Auto Build & Release
+
+env:
+  PROJECT_NAME: tasklynx
+  PUBLISHER_NAME: rkriad585
+  PUBLISHER_EMAIL: rkriad585@gmail.com
+
 on:
   push:
-    tags: ['v*.*.*']
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
 permissions:
   contents: write
+
 jobs:
+  prepare:
+    name: "Prepare metadata"
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.meta.outputs.version }}
+      tag: ${{ steps.meta.outputs.tag }}
+      commit: ${{ steps.meta.outputs.commit }}
+      prerelease: ${{ steps.meta.outputs.prerelease }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Fetch version + resolve metadata
+        id: meta
+        run: |
+          VERSION=""
+          if [ -f ".version" ]; then
+            VERSION=$(cat .version | tr -d '[:space:]')
+          fi
+          if [ -z "$VERSION" ]; then
+            VERSION=$(grep '^version' Cargo.toml | head -1 | cut -d'"' -f2)
+          fi
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v${VERSION}")
+          else
+            TAG="${GITHUB_REF#refs/tags/}"
+          fi
+          COMMIT=$(git rev-parse --short=8 HEAD)
+          if [[ "$TAG" == *"-"* ]]; then PRERELEASE="true"; else PRERELEASE="false"; fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "commit=$COMMIT" >> "$GITHUB_OUTPUT"
+          echo "prerelease=$PRERELEASE" >> "$GITHUB_OUTPUT"
+          echo "## Release Metadata" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Field | Value |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|---|---|" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Project | \`${{ env.PROJECT_NAME }}\` |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Tag | \`${TAG}\` |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Version | \`${VERSION}\` |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Commit | \`${COMMIT}\` |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Pre-release | ${PRERELEASE} |" >> "$GITHUB_STEP_SUMMARY"
+
   build:
+    name: "Build ${{ matrix.label }}"
+    needs: prepare
+    runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false
       matrix:
         include:
-          - os: ubuntu-latest
-            target: x86_64-unknown-linux-gnu
-            name: tasklynx-linux-amd64
-          - os: ubuntu-latest
-            target: aarch64-unknown-linux-gnu
-            name: tasklynx-linux-arm64
-          - os: windows-latest
+          - label: windows/amd64
+            runner: windows-latest
             target: x86_64-pc-windows-msvc
             name: tasklynx-windows-amd64.exe
-          - os: macos-latest
+          - label: windows/arm64
+            runner: windows-latest
+            target: aarch64-pc-windows-msvc
+            name: tasklynx-windows-arm64.exe
+          - label: linux/amd64
+            runner: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            name: tasklynx-linux-amd64
+          - label: linux/arm64
+            runner: ubuntu-latest
+            target: aarch64-unknown-linux-gnu
+            name: tasklynx-linux-arm64
+          - label: darwin/amd64
+            runner: macos-latest
             target: x86_64-apple-darwin
             name: tasklynx-darwin-amd64
-          - os: macos-latest
+          - label: darwin/arm64
+            runner: macos-latest
             target: aarch64-apple-darwin
             name: tasklynx-darwin-arm64
-          - os: ubuntu-latest
+          - label: android/arm64
+            runner: ubuntu-latest
             target: aarch64-linux-android
             name: tasklynx-android-arm64
-          - os: ubuntu-latest
+          - label: android/amd64
+            runner: ubuntu-latest
             target: x86_64-linux-android
             name: tasklynx-android-amd64
-    runs-on: ${{ matrix.os }}
+
     steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-        with: { targets: ${{ matrix.target }} }
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.prepare.outputs.tag }}
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
       - name: Install cross linker
         if: matrix.target == 'aarch64-unknown-linux-gnu'
         run: sudo apt-get update && sudo apt-get install -y gcc-aarch64-linux-gnu
-      - name: Install Android target tools
+
+      - name: Install Android tools
         if: contains(matrix.target, 'android')
         uses: android-actions/setup-android@v3
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.target }}
+
       - name: Build
         run: cargo build --release --target ${{ matrix.target }}
+
       - name: Package
         shell: bash
         run: |
           mkdir -p dist
-          cp "target/${{ matrix.target }}/release/tasklynx" "dist/${{ matrix.name }}" 2>/dev/null || cp "target/${{ matrix.target }}/release/tasklynx.exe" "dist/${{ matrix.name }}"
-      - uses: actions/upload-artifact@v4
-        with: { name: ${{ matrix.name }}, path: dist/* }
-  release:
-    needs: build
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/download-artifact@v4
-        with: { path: dist, merge-multiple: true }
-      - name: Checksums
-        run: cd dist && sha256sum * > SHA256SUMS.txt
-      - uses: softprops/action-gh-release@v2
+          if [ -f "target/${{ matrix.target }}/release/tasklynx.exe" ]; then
+            cp "target/${{ matrix.target }}/release/tasklynx.exe" "dist/${{ matrix.name }}"
+          else
+            cp "target/${{ matrix.target }}/release/tasklynx" "dist/${{ matrix.name }}"
+          fi
+
+      - name: Generate checksum
+        shell: bash
+        run: |
+          cd dist
+          if command -v sha256sum &>/dev/null; then sha256sum "${{ matrix.name }}" > "${{ matrix.name }}.sha256"; else shasum -a 256 "${{ matrix.name }}" > "${{ matrix.name }}.sha256"; fi
+          cat "${{ matrix.name }}.sha256"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
         with:
-          generate_release_notes: true
+          name: bin-${{ matrix.label }}
+          path: |
+            dist/${{ matrix.name }}
+            dist/${{ matrix.name }}.sha256
+          retention-days: 1
+
+  changelog:
+    name: "Generate Changelog"
+    needs: prepare
+    runs-on: ubuntu-latest
+    outputs:
+      body: ${{ steps.gen.outputs.body }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Build notes
+        id: gen
+        run: |
+          TAG="${{ needs.prepare.outputs.tag }}"
+          COMMIT="${{ needs.prepare.outputs.commit }}"
+          PROJECT="${{ env.PROJECT_NAME }}"
+
+          {
+            echo 'body<<EOF'
+            echo "## ${PROJECT} ${TAG}"
+            echo ""
+            echo "> Commit: \`${COMMIT}\` | Publisher: **${{ env.PUBLISHER_NAME }}** <${{ env.PUBLISHER_EMAIL }}>"
+            echo ""
+            echo "### Downloads"
+            echo "| Platform | Architecture | File |"
+            echo "|----------|-------------|------|"
+            echo "| Windows | AMD64 | \`${PROJECT}-windows-amd64.exe\` |"
+            echo "| Windows | ARM64 | \`${PROJECT}-windows-arm64.exe\` |"
+            echo "| Linux | AMD64 | \`${PROJECT}-linux-amd64\` |"
+            echo "| Linux | ARM64 | \`${PROJECT}-linux-arm64\` |"
+            echo "| macOS | AMD64 (Intel) | \`${PROJECT}-darwin-amd64\` |"
+            echo "| macOS | ARM64 (Apple Silicon) | \`${PROJECT}-darwin-arm64\` |"
+            echo "| Android | ARM64 | \`${PROJECT}-android-arm64\` |"
+            echo "| Android | AMD64 | \`${PROJECT}-android-amd64\` |"
+            echo ""
+            echo "### Verify Checksum"
+            echo "\`\`\`bash"
+            echo "sha256sum --check ${PROJECT}-linux-amd64.sha256"
+            echo "\`\`\`"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+  release:
+    name: "Publish Release"
+    needs: [prepare, build, changelog]
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: bin-*
+          path: dist
+          merge-multiple: true
+
+      - name: Generate SHA256SUMS
+        run: cd dist && sha256sum * > SHA256SUMS.txt && ls -lh
+
+      - name: Publish Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.prepare.outputs.tag }}
+          name: "${{ env.PROJECT_NAME }} ${{ needs.prepare.outputs.tag }}"
+          body: ${{ needs.changelog.outputs.body }}
+          prerelease: ${{ needs.prepare.outputs.prerelease }}
+          draft: false
           files: dist/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
