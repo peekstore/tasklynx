@@ -2,17 +2,12 @@ use chrono::{DateTime, Local, TimeZone, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
 pub enum Status {
+    #[default]
     Todo,
     Doing,
     Done,
-}
-
-impl Default for Status {
-    fn default() -> Self {
-        Self::Todo
-    }
 }
 impl std::fmt::Display for Status {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -28,17 +23,13 @@ impl std::fmt::Display for Status {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Default)]
 pub enum Priority {
     Low,
+    #[default]
     Normal,
     High,
     Urgent,
-}
-impl Default for Priority {
-    fn default() -> Self {
-        Self::Normal
-    }
 }
 impl std::fmt::Display for Priority {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
