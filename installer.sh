@@ -123,3 +123,8 @@ fi
 
 echo -e "\n${GREEN}✓ tasklynx installed to ${BINARY_PATH}${NC}"
 echo -e "${YELLOW}Run 'source ~/.bashrc' or restart terminal${NC}\n"
+
+# Also create tx alias
+if [ -f "$BINARY_PATH" ] && [ ! -f "${BIN_DIR}/tx" ]; then
+    ln -sf "$BINARY_PATH" "${BIN_DIR}/tx"
+fi
