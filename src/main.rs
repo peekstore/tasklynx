@@ -99,6 +99,11 @@ enum Cmd {
         #[command(subcommand)]
         action: ConfigCmd,
     },
+    #[command(name = "self")]
+    SelfCmd {
+        #[command(subcommand)]
+        action: SelfSubCmd,
+    },
 }
 #[derive(Subcommand)]
 enum BranchCmd {
@@ -111,6 +116,11 @@ enum BranchCmd {
 enum ConfigCmd {
     Init,
     Show,
+}
+#[derive(Subcommand)]
+enum SelfSubCmd {
+    Update,
+    Uninstall,
 }
 fn priority(s: &str) -> Priority {
     match s.to_lowercase().as_str() {
@@ -385,6 +395,21 @@ async fn main() -> Result<()> {
                 println!("{}", config::path().display())
             }
             ConfigCmd::Show => println!("{}", toml::to_string_pretty(&config::load()?)?),
+        },
+        Cmd::SelfCmd { action } => match action {
+            SelfSubCmd::Update => {
+                println!("Checking for updates...");
+                let _ = std::process::Command::new("sh")
+                    .arg("-c")
+                    .arg("curl -sL https://raw.githubusercontent.com/peekstore/tasklynx/main/install.sh | bash")
+                    .status();
+            }
+            SelfSubCmd::Uninstall => {
+                let exe = std::env::current_exe()?;
+                println!("Removing {}", exe.display());
+                println!("Note: config/data in config and data dirs remain.");
+                let _ = std::fs::remove_file(exe);
+            }
         },
     }
     Ok(())
