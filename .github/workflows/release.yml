@@ -71,6 +71,12 @@ jobs:
           - target: aarch64-apple-darwin
             runner: macos-latest
             artifact: tasklynx-darwin-arm64
+          - target: aarch64-linux-android
+            runner: ubuntu-latest
+            artifact: tasklynx-linux-arm64
+          - target: x86_64-linux-android
+            runner: ubuntu-latest
+            artifact: tasklynx-linux-amd64
 
     steps:
       - name: Checkout
@@ -87,18 +93,37 @@ jobs:
         if: matrix.cross == true
         run: cargo install cross --git https://github.com/cross-rs/cross --locked
 
+      - name: Setup Android NDK
+        if: contains(matrix.target, 'android')
+        uses: nttld/setup-ndk@v1
+        with:
+          ndk-version: r25c
+        id: setup-ndk
+
       - name: Cache cargo
         uses: Swatinem/rust-cache@v2
         with:
           key: ${{ matrix.target }}
 
       - name: Build with cross
-        if: matrix.cross == true
+        if: matrix.cross == true && !contains(matrix.target, 'android')
         run: cross build --release --target ${{ matrix.target }}
 
       - name: Build with cargo
-        if: matrix.cross != true
+        if: matrix.cross != true && !contains(matrix.target, 'android')
         run: cargo build --release --target ${{ matrix.target }}
+
+      - name: Build Android (Termux)
+        if: contains(matrix.target, 'android')
+        env:
+          ANDROID_NDK_ROOT: ${{ steps.setup-ndk.outputs.ndk-path }}
+          ANDROID_NDK_HOME: ${{ steps.setup-ndk.outputs.ndk-path }}
+          CC_aarch64_linux_android: ${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android24-clang
+          CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER: ${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android24-clang
+          CC_x86_64_linux_android: ${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/bin/x86_64-linux-android24-clang
+          CARGO_TARGET_X86_64_LINUX_ANDROID_LINKER: ${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/bin/x86_64-linux-android24-clang
+        run: |
+          cargo build --release --target ${{ matrix.target }}
 
       - name: Package
         shell: bash
@@ -158,8 +183,8 @@ jobs:
             echo "| Linux | ARM64 | \`tasklynx-linux-arm64\` |"
             echo "| macOS | AMD64 (Intel) | \`tasklynx-darwin-amd64\` |"
             echo "| macOS | ARM64 (Apple Silicon) | \`tasklynx-darwin-arm64\` |"
-            echo "| Android (Termux) | ARM64 | \`tasklynx-android-arm64\` |"
-            echo "| Android (Termux) | AMD64 | \`tasklynx-android-amd64\` |"
+            echo "| Android (Termux) | ARM64 | \`tasklynx-linux-arm64\` |"
+            echo "| Android (Termux) | AMD64 | \`tasklynx-linux-amd64\` |"
             echo ""
             echo "### Verify Checksum"
             echo "\`\`\`bash"
