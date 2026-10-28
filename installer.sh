@@ -29,6 +29,7 @@ if [ "$IS_UNINSTALL" = true ]; then
         rm -f "$BINARY_PATH"
         echo -e "  ${GREEN}Removed${NC} $BINARY_PATH"
     fi
+    rm -f "${BIN_DIR}/tx" 2>/dev/null || true
     if command -v nix-env >/dev/null 2>&1 && nix-env -q | grep -q tasklynx 2>/dev/null; then
         nix-env -e tasklynx 2>/dev/null || true
         echo -e "  ${GREEN}Removed${NC} from nix profile"
@@ -44,7 +45,7 @@ if command -v nix >/dev/null 2>&1; then
     echo -e "  ${CYAN}Nix detected${NC}"
     if [ -f /etc/NIXOS ]; then
         echo "  For NixOS, add to your configuration.nix or home-manager:"
-        echo "    environment.systemPackages = [ pkgs.tasklynx ]; # or build from source"
+        echo "    environment.systemPackages = [ pkgs.tasklynx ];"
         echo "  Or use: nix profile install github:peekstore/tasklynx"
         echo "  Or run directly: nix run github:peekstore/tasklynx"
     else
@@ -74,20 +75,25 @@ ARCH_NAME=$(uname -m)
 case "$ARCH_NAME" in
     x86_64|amd64) ARCH="amd64" ;;
     aarch64|arm64) ARCH="arm64" ;;
-    armv7l) ARCH="arm64" ;; # best effort
+    armv7l) ARCH="arm64" ;;
     *) echo -e "${RED}Unsupported arch${NC}"; exit 1 ;;
 esac
 
 printf "  Platform: %s-%s\n" "$OS" "$ARCH"
 
-# Get version
-VERSION=$(cat /dev/stdin 2>/dev/null || true)
-if [ -z "${VERSION:-}" ] || [ "$VERSION" = "latest" ]; then
+# Get version (don't read from stdin when piped)
+VERSION="latest"
+if [ -t 0 ] && [ -z "${1:-}" ]; then
+    VERSION="latest"
+elif [ -n "${1:-}" ]; then
+    VERSION="$1"
+fi
+
+if [ "$VERSION" = "latest" ] || [ -z "$VERSION" ]; then
     VERSION=$(curl -fsSL "https://api.github.com/repos/${GITHUB_REPO}/releases/latest" 2>/dev/null | grep '"tag_name"' | cut -d'"' -f4 | head -1 || echo "latest")
 fi
 
 if [ "$VERSION" = "latest" ] || [ -z "$VERSION" ]; then
-    # fallback
     VERSION=$(curl -fsSL "https://raw.githubusercontent.com/${GITHUB_REPO}/main/.version" 2>/dev/null | tr -d '[:space:]' || echo "")
 fi
 
@@ -107,24 +113,26 @@ if command -v curl >/dev/null 2>&1; then
         echo "Try manual download from https://github.com/${GITHUB_REPO}/releases"
         exit 1
     }
-else
+elif command -v wget >/dev/null 2>&1; then
     wget --show-progress -O "$BINARY_PATH" "$DOWNLOAD_URL" || exit 1
+else
+    echo -e "${RED}curl or wget required${NC}"
+    exit 1
 fi
 
 chmod +x "$BINARY_PATH"
 
+# Create tx alias
+ln -sf "$BINARY_PATH" "${BIN_DIR}/tx" 2>/dev/null || cp "$BINARY_PATH" "${BIN_DIR}/tx" && chmod +x "${BIN_DIR}/tx"
+
 # Add to PATH
 if ! echo "$PATH" | grep -q "$HOME/.local/bin"; then
     for rc in "$HOME/.bashrc" "$HOME/.zshrc" "$HOME/.profile"; do
-        [ -f "$rc" ] && ! grep -q ".local/bin" "$rc" && echo 'export PATH="$HOME/.local/bin:$PATH"' >> "$rc" || true
+        [ -f "$rc" ] && grep -q ".local/bin" "$rc" || echo 'export PATH="$HOME/.local/bin:$PATH"' >> "$rc" 2>/dev/null || true
     done
     export PATH="$HOME/.local/bin:$PATH"
 fi
 
 echo -e "\n${GREEN}✓ tasklynx installed to ${BINARY_PATH}${NC}"
+echo -e "${GREEN}✓ tx alias created${NC}"
 echo -e "${YELLOW}Run 'source ~/.bashrc' or restart terminal${NC}\n"
-
-# Also create tx alias
-if [ -f "$BINARY_PATH" ] && [ ! -f "${BIN_DIR}/tx" ]; then
-    ln -sf "$BINARY_PATH" "${BIN_DIR}/tx"
-fi
