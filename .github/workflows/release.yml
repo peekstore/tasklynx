@@ -51,55 +51,40 @@ jobs:
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
           echo "commit=$COMMIT" >> "$GITHUB_OUTPUT"
           echo "prerelease=$PRERELEASE" >> "$GITHUB_OUTPUT"
-          echo "## Release Metadata" >> "$GITHUB_STEP_SUMMARY"
-          echo "| Field | Value |" >> "$GITHUB_STEP_SUMMARY"
-          echo "|---|---|" >> "$GITHUB_STEP_SUMMARY"
-          echo "| Project | \`${{ env.PROJECT_NAME }}\` |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| Tag | \`${TAG}\` |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| Version | \`${VERSION}\` |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| Commit | \`${COMMIT}\` |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| Pre-release | ${PRERELEASE} |" >> "$GITHUB_STEP_SUMMARY"
 
   build:
-    name: "Build ${{ matrix.label }}"
+    name: "Build ${{ matrix.target }}"
     needs: prepare
     runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false
       matrix:
         include:
-          - label: windows/amd64
+          - target: x86_64-pc-windows-msvc
             runner: windows-latest
-            target: x86_64-pc-windows-msvc
-            name: tasklynx-windows-amd64.exe
-          - label: windows/arm64
+            artifact: tasklynx-windows-amd64.exe
+          - target: aarch64-pc-windows-msvc
             runner: windows-latest
-            target: aarch64-pc-windows-msvc
-            name: tasklynx-windows-arm64.exe
-          - label: linux/amd64
+            artifact: tasklynx-windows-arm64.exe
+          - target: x86_64-unknown-linux-gnu
             runner: ubuntu-latest
-            target: x86_64-unknown-linux-gnu
-            name: tasklynx-linux-amd64
-          - label: linux/arm64
+            artifact: tasklynx-linux-amd64
+          - target: aarch64-unknown-linux-gnu
             runner: ubuntu-latest
-            target: aarch64-unknown-linux-gnu
-            name: tasklynx-linux-arm64
-          - label: darwin/amd64
+            artifact: tasklynx-linux-arm64
+            cross: true
+          - target: x86_64-apple-darwin
+            runner: macos-13
+            artifact: tasklynx-darwin-amd64
+          - target: aarch64-apple-darwin
             runner: macos-latest
-            target: x86_64-apple-darwin
-            name: tasklynx-darwin-amd64
-          - label: darwin/arm64
-            runner: macos-latest
-            target: aarch64-apple-darwin
-            name: tasklynx-darwin-arm64
-          - label: android/arm64
+            artifact: tasklynx-darwin-arm64
+          - target: aarch64-linux-android
             runner: ubuntu-latest
-            target: aarch64-linux-android
-            name: tasklynx-android-arm64
-          - label: android/amd64
+            artifact: tasklynx-android-arm64
+          - target: x86_64-linux-android
             runner: ubuntu-latest
-            target: x86_64-linux-android
-            name: tasklynx-android-amd64
+            artifact: tasklynx-android-amd64
 
     steps:
       - name: Checkout
@@ -112,9 +97,9 @@ jobs:
         with:
           targets: ${{ matrix.target }}
 
-      - name: Install cross linker
-        if: matrix.target == 'aarch64-unknown-linux-gnu'
-        run: sudo apt-get update && sudo apt-get install -y gcc-aarch64-linux-gnu
+      - name: Install cross
+        if: matrix.cross == true
+        run: cargo install cross --git https://github.com/cross-rs/cross --locked
 
       - name: Install Android tools
         if: contains(matrix.target, 'android')
@@ -125,33 +110,37 @@ jobs:
         with:
           key: ${{ matrix.target }}
 
-      - name: Build
+      - name: Build with cross
+        if: matrix.cross == true
+        run: cross build --release --target ${{ matrix.target }}
+
+      - name: Build with cargo
+        if: matrix.cross != true
         run: cargo build --release --target ${{ matrix.target }}
 
       - name: Package
         shell: bash
         run: |
           mkdir -p dist
-          if [ -f "target/${{ matrix.target }}/release/tasklynx.exe" ]; then
-            cp "target/${{ matrix.target }}/release/tasklynx.exe" "dist/${{ matrix.name }}"
+          if [[ "${{ matrix.target }}" == *"windows"* ]]; then
+            cp "target/${{ matrix.target }}/release/tasklynx.exe" "dist/${{ matrix.artifact }}"
           else
-            cp "target/${{ matrix.target }}/release/tasklynx" "dist/${{ matrix.name }}"
+            cp "target/${{ matrix.target }}/release/tasklynx" "dist/${{ matrix.artifact }}"
           fi
 
       - name: Generate checksum
         shell: bash
         run: |
           cd dist
-          if command -v sha256sum &>/dev/null; then sha256sum "${{ matrix.name }}" > "${{ matrix.name }}.sha256"; else shasum -a 256 "${{ matrix.name }}" > "${{ matrix.name }}.sha256"; fi
-          cat "${{ matrix.name }}.sha256"
+          if command -v sha256sum &>/dev/null; then sha256sum "${{ matrix.artifact }}" > "${{ matrix.artifact }}.sha256"; else shasum -a 256 "${{ matrix.artifact }}" > "${{ matrix.artifact }}.sha256"; fi
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: bin-${{ matrix.label }}
+          name: ${{ matrix.artifact }}
           path: |
-            dist/${{ matrix.name }}
-            dist/${{ matrix.name }}.sha256
+            dist/${{ matrix.artifact }}
+            dist/${{ matrix.artifact }}.sha256
           retention-days: 1
 
   changelog:
@@ -172,29 +161,27 @@ jobs:
         run: |
           TAG="${{ needs.prepare.outputs.tag }}"
           COMMIT="${{ needs.prepare.outputs.commit }}"
-          PROJECT="${{ env.PROJECT_NAME }}"
-
           {
             echo 'body<<EOF'
-            echo "## ${PROJECT} ${TAG}"
+            echo "## tasklynx ${TAG}"
             echo ""
             echo "> Commit: \`${COMMIT}\` | Publisher: **${{ env.PUBLISHER_NAME }}** <${{ env.PUBLISHER_EMAIL }}>"
             echo ""
             echo "### Downloads"
             echo "| Platform | Architecture | File |"
             echo "|----------|-------------|------|"
-            echo "| Windows | AMD64 | \`${PROJECT}-windows-amd64.exe\` |"
-            echo "| Windows | ARM64 | \`${PROJECT}-windows-arm64.exe\` |"
-            echo "| Linux | AMD64 | \`${PROJECT}-linux-amd64\` |"
-            echo "| Linux | ARM64 | \`${PROJECT}-linux-arm64\` |"
-            echo "| macOS | AMD64 (Intel) | \`${PROJECT}-darwin-amd64\` |"
-            echo "| macOS | ARM64 (Apple Silicon) | \`${PROJECT}-darwin-arm64\` |"
-            echo "| Android | ARM64 | \`${PROJECT}-android-arm64\` |"
-            echo "| Android | AMD64 | \`${PROJECT}-android-amd64\` |"
+            echo "| Windows | AMD64 | \`tasklynx-windows-amd64.exe\` |"
+            echo "| Windows | ARM64 | \`tasklynx-windows-arm64.exe\` |"
+            echo "| Linux | AMD64 | \`tasklynx-linux-amd64\` |"
+            echo "| Linux | ARM64 | \`tasklynx-linux-arm64\` |"
+            echo "| macOS | AMD64 (Intel) | \`tasklynx-darwin-amd64\` |"
+            echo "| macOS | ARM64 (Apple Silicon) | \`tasklynx-darwin-arm64\` |"
+            echo "| Android | ARM64 | \`tasklynx-android-arm64\` |"
+            echo "| Android | AMD64 | \`tasklynx-android-amd64\` |"
             echo ""
             echo "### Verify Checksum"
             echo "\`\`\`bash"
-            echo "sha256sum --check ${PROJECT}-linux-amd64.sha256"
+            echo "sha256sum --check tasklynx-linux-amd64.sha256"
             echo "\`\`\`"
             echo "EOF"
           } >> "$GITHUB_OUTPUT"
@@ -208,21 +195,23 @@ jobs:
       - name: Download artifacts
         uses: actions/download-artifact@v4
         with:
-          pattern: bin-*
           path: dist
-          merge-multiple: true
 
-      - name: Generate SHA256SUMS
-        run: cd dist && sha256sum * > SHA256SUMS.txt && ls -lh
+      - name: Flatten and checksum
+        run: |
+          mkdir -p final
+          find dist -type f \( -name "*.exe" -o -name "tasklynx-*" \) -not -name "*.sha256" -exec cp {} final/ \;
+          find dist -name "*.sha256" -exec cp {} final/ \;
+          cd final && sha256sum * > SHA256SUMS.txt && ls -lh
 
       - name: Publish Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ needs.prepare.outputs.tag }}
-          name: "${{ env.PROJECT_NAME }} ${{ needs.prepare.outputs.tag }}"
+          name: "tasklynx ${{ needs.prepare.outputs.tag }}"
           body: ${{ needs.changelog.outputs.body }}
           prerelease: ${{ needs.prepare.outputs.prerelease }}
           draft: false
-          files: dist/*
+          files: final/*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
