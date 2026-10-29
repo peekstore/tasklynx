@@ -2,7 +2,7 @@
 <package xmlns="http://schemas.microsoft.com/packaging/2015/06/nuspec.xsd">
   <metadata>
     <id>tasklynx</id>
-    <version>0.0.1-beta-2</version>
+    <version>0.0.1-beta-3</version>
     <packageSourceUrl>https://github.com/peekstore/tasklynx/tree/main/packaging/chocolatey</packageSourceUrl>
     <owners>rkriad585</owners>
     <title>Tasklynx</title>
@@ -27,7 +27,7 @@ Tasklynx is a developer-first local task manager featuring Git-style branch work
 - Full import and export in JSON and Markdown formats.
 - Single portable binary with alias `tx`.
     </description>
-    <releaseNotes>https://github.com/peekstore/tasklynx/releases/tag/v0.0.1-beta-2</releaseNotes>
+    <releaseNotes>https://github.com/peekstore/tasklynx/releases/tag/v0.0.1-beta-3</releaseNotes>
   </metadata>
   <files>
     <file src="tools\**" target="tools" />

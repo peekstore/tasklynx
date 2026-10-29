@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.0.1-beta-3
+
+- Complete support for multi-package managers (mise, pacman, apt, homebrew, pipx, winget, scoop, chocolatey, npm).
+- Automated package checksum syncing via GitHub Actions.
+- Real high-DPI screenshots generated and updated via headless Chromium automation in CI.
+- Dual dark/light mode banner support for Void MkDocs theme and GitHub README.
+- Built-in Void theme dark/light palette switcher and AI reader (`llms.txt`, `llms-full.txt`).
+
 ## 0.0.1-beta-2
 
 - Android builds now use real Android ABI artifacts: `arm64-v8a`, `armeabi-v7a`, `x86_64`.

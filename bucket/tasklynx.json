@@ -1,15 +1,15 @@
 {
-  "version": "0.0.1-beta-2",
+  "version": "0.0.1-beta-3",
   "description": "Developer-first local task manager with Git-style workflows",
   "homepage": "https://peekstore.github.io/tasklynx",
   "license": "MIT",
   "architecture": {
     "64bit": {
-      "url": "https://github.com/peekstore/tasklynx/releases/download/v0.0.1-beta-2/tasklynx-windows-amd64.exe#/tasklynx.exe",
+      "url": "https://github.com/peekstore/tasklynx/releases/download/v0.0.1-beta-3/tasklynx-windows-amd64.exe#/tasklynx.exe",
       "hash": "61e8ecaa553e75baba1282d953acd174b3667c5bbe0d2b5558d6bb34214e4794"
     },
     "arm64": {
-      "url": "https://github.com/peekstore/tasklynx/releases/download/v0.0.1-beta-2/tasklynx-windows-arm64.exe#/tasklynx.exe",
+      "url": "https://github.com/peekstore/tasklynx/releases/download/v0.0.1-beta-3/tasklynx-windows-arm64.exe#/tasklynx.exe",
       "hash": "b6fb0d67b55d7b146ea22fc05514d563c0b7b668b0799478d187136ab270b7b9"
     }
   },

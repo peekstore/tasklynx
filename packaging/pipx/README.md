@@ -68,7 +68,7 @@ The installer places `tasklynx` and the `tx` alias in
 Pin a specific version:
 
 ```bash
-TASKLYNX_VERSION=v0.0.1-beta-2 \
+TASKLYNX_VERSION=v0.0.1-beta-3 \
   curl -fsSL https://raw.githubusercontent.com/peekstore/tasklynx/main/installer.sh | sh
 ```
 

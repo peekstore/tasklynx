@@ -47,7 +47,7 @@ jobs:
         run: cargo build --release
       - name: Build .deb
         run: |
-          ./packaging/debian/build_deb.sh "0.0.1-beta-2" "amd64" "target/release/tasklynx" "."
+          ./packaging/debian/build_deb.sh "0.0.1-beta-3" "amd64" "target/release/tasklynx" "."
       - name: Test .deb installation
         run: |
           sudo dpkg -i tasklynx_*.deb

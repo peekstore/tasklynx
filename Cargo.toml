@@ -1,6 +1,6 @@
 [package]
 name = "tasklynx"
-version = "0.0.1-beta-2"
+version = "0.0.1-beta-3"
 edition = "2021"
 rust-version = "1.75"
 description = "A developer-first local task manager with Git-style workflows and a terminal-native dashboard."

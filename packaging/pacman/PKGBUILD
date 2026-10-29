@@ -1,7 +1,7 @@
 # Maintainer: RK Riad Khan <rkriad585@gmail.com>
 pkgname=tasklynx-bin
-pkgver=0.0.1.beta2
-_tag=v0.0.1-beta-2
+pkgver=0.0.1.beta3
+_tag=v0.0.1-beta-3
 pkgrel=1
 pkgdesc="Developer-first local task manager with Git-style workflows and terminal dashboard"
 arch=('x86_64' 'aarch64')

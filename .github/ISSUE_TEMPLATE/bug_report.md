@@ -21,7 +21,7 @@ A clear and concise description of what you expected to happen.
 **Environment (please complete the following information):**
 - OS: [e.g. Linux Ubuntu 24.04, macOS Sonoma, Windows 11, Termux]
 - Architecture: [e.g. x86_64, aarch64]
-- Tasklynx Version: [e.g. 0.0.1-beta-2 (run `tx --version`)]
+- Tasklynx Version: [e.g. 0.0.1-beta-3 (run `tx --version`)]
 
 **Additional context**
 Add any other context or terminal output about the problem here.

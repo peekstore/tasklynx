@@ -50,7 +50,7 @@ Legend: `[ ]` pending · `[~]` in progress · `[x]` done
   - **Mise / asdf**: `packaging/mise/` plugin scripts (`list-all`, `download`, `install`).
   - **Pipx**: `packaging/pipx/` PEP-621 / `pyproject.toml` Python package with binary runner.
   - **Scoop**: `packaging/scoop/tasklynx.json` and `bucket/tasklynx.json`.
-  - **Winget**: `packaging/winget/manifests/p/peekstore/tasklynx/0.0.1-beta-2/` manifests.
+  - **Winget**: `packaging/winget/manifests/p/peekstore/tasklynx/0.0.1-beta-3/` manifests.
   - **Chocolatey**: `packaging/chocolatey/tasklynx.nuspec` and install/uninstall scripts with `CHOCO_SECRET_KEY` automation.
   - **NPM**: `packaging/npm/` package with multi-platform binary fetcher and `NPM_SCERET` publication workflow.
   - **GitHub Actions workflows**: `.github/workflows/package-publish.yml` testing and publishing packages across ecosystems.

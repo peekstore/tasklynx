@@ -67,7 +67,7 @@ More images and descriptions in the [screenshots gallery](https://peekstore.gith
 | **Homebrew** | macOS / Linux | `brew install peekstore/tasklynx/tasklynx` |
 | **mise** | Linux / macOS | `mise use -g ubi:peekstore/tasklynx` |
 | **Pacman** | Arch Linux | `cd packaging/pacman && makepkg -si` |
-| **APT** | Debian / Ubuntu | `sudo apt install ./tasklynx_0.0.1-beta-2_amd64.deb` |
+| **APT** | Debian / Ubuntu | `sudo apt install ./tasklynx_0.0.1-beta-3_amd64.deb` |
 | **pipx** | Cross-platform | `pipx install git+https://github.com/peekstore/tasklynx.git#subdirectory=packaging/pipx` |
 | **Winget** | Windows | `winget install peekstore.tasklynx` |
 | **Scoop** | Windows | `scoop bucket add tasklynx https://github.com/peekstore/tasklynx && scoop install tasklynx` |
@@ -87,7 +87,7 @@ The installer places `tasklynx` and the `tx` alias in `${XDG_CONFIG_HOME:-$HOME/
 Pin a specific version:
 
 ```bash
-TASKLYNX_VERSION=v0.0.1-beta-2 \
+TASKLYNX_VERSION=v0.0.1-beta-3 \
   curl -fsSL https://raw.githubusercontent.com/peekstore/tasklynx/main/installer.sh | sh
 ```
 

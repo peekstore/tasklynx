@@ -1,3 +1,0 @@
-[console_scripts]
-tasklynx = tasklynx.cli:main
-tx = tasklynx.cli:main
