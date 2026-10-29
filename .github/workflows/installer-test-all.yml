@@ -403,7 +403,7 @@ jobs:
           su builder -c "cd packaging/pacman && makepkg --printsrcinfo > .SRCINFO.gen"
           diff -u packaging/pacman/.SRCINFO packaging/pacman/.SRCINFO.gen || \
             echo "::warning::.SRCINFO may need regeneration — run: cd packaging/pacman && makepkg --printsrcinfo > .SRCINFO"
-      - name: Dry-run makepkg (mirrors: cd packaging/pacman && makepkg -si)
+      - name: "Dry-run makepkg (mirrors: cd packaging/pacman && makepkg -si)"
         run: |
           # makepkg --nobuild verifies the PKGBUILD syntax and sources without building
           su builder -c "cd packaging/pacman && makepkg --nobuild --noprepare --skippgpcheck 2>&1 || true"
