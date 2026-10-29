@@ -12,7 +12,7 @@ documentation = "https://peekstore.github.io/tasklynx/"
 readme = "README.md"
 keywords = ["tasks", "todo", "kanban", "cli", "tui"]
 categories = ["command-line-utilities", "productivity"]
-exclude = ["/site", "/Screenshots", "/tasklynx-logos", "/docs", "/.github"]
+exclude = ["/site", "/Screenshots", "/Tasklynx-logos", "/docs", "/.github"]
 build = "build.rs"
 
 [dependencies]

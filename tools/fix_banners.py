@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 import os
 
-outdir = '/home/rkriad585/Projects/tasklynx/tasklynx-logos'
+outdir = '/home/rkriad585/Projects/tasklynx/Tasklynx-logos'
 
 letters = {
     'T': ('M12 15 L88 15 M50 15 L50 185', 100),

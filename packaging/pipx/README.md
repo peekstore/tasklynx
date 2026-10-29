@@ -235,7 +235,7 @@ Contributions are welcome. Please read [CONTRIBUTING.md](CONTRIBUTING.md) and [C
 
 ## Brand assets
 
-Logos, icons, and banners live in [`tasklynx-logos/`](tasklynx-logos). Use them for articles, packages, and integrations.
+Logos, icons, and banners live in [`Tasklynx-logos/`](Tasklynx-logos). Use them for articles, packages, and integrations.
 
 ## License
 

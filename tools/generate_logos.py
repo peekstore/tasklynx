@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 import os
 
-outdir = '/home/rkriad585/Projects/tasklynx/tasklynx-logos'
+outdir = '/home/rkriad585/Projects/tasklynx/Tasklynx-logos'
 os.makedirs(outdir, exist_ok=True)
 
 letters = {

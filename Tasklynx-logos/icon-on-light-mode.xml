@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="200dp"
+    android:height="200dp"
+    android:viewportWidth="200"
+    android:viewportHeight="200">
+    <group android:translateX="40" android:translateY="30">
+      <path android:pathData="M40 20 L40 80" android:fillColor="#000000" android:strokeColor="#111111" android:strokeWidth="14" android:strokeLineCap="square" android:strokeLineJoin="miter"/>
+      <path android:pathData="M40 50 L90 50" android:fillColor="#000000" android:strokeColor="#111111" android:strokeWidth="14" android:strokeLineCap="square" android:strokeLineJoin="miter"/>
+      <path android:pathData="M28 20 A12 12 0 1 0 52 20 A12 12 0 1 0 28 20 Z" android:strokeColor="#111111" android:strokeWidth="14" android:strokeLineCap="butt" android:strokeLineJoin="miter"/>
+      <path android:pathData="M28 80 A12 12 0 1 0 52 80 A12 12 0 1 0 28 80 Z" android:strokeColor="#111111" android:strokeWidth="14" android:strokeLineCap="butt" android:strokeLineJoin="miter"/>
+      <path android:pathData="M78 50 A12 12 0 1 0 102 50 A12 12 0 1 0 78 50 Z" android:strokeColor="#111111" android:strokeWidth="14" android:strokeLineCap="butt" android:strokeLineJoin="miter"/>
+      <path android:pathData="M34 50 A6 6 0 1 0 46 50 A6 6 0 1 0 34 50 Z" android:fillColor="#111111"/>
+    </group>
+</vector>

@@ -1,8 +1,8 @@
 <div align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="tasklynx-logos/banner-on-dark-mode-1280x640.png">
-    <source media="(prefers-color-scheme: light)" srcset="tasklynx-logos/banner-on-light-mode-1280x640.png">
-    <img alt="Tasklynx Banner" src="tasklynx-logos/banner-on-dark-mode-1280x640.png" width="100%">
+    <source media="(prefers-color-scheme: dark)" srcset="Tasklynx-logos/banner-on-dark-mode-1280x640.png">
+    <source media="(prefers-color-scheme: light)" srcset="Tasklynx-logos/banner-on-light-mode-1280x640.png">
+    <img alt="Tasklynx Banner" src="Tasklynx-logos/banner-on-dark-mode-1280x640.png" width="100%">
   </picture>
 
   <h1>Tasklynx</h1>
@@ -246,7 +246,7 @@ Contributions are welcome. Please read [CONTRIBUTING.md](CONTRIBUTING.md) and [C
 
 ## Brand assets
 
-Logos, icons, and banners live in [`tasklynx-logos/`](tasklynx-logos). Use them for articles, packages, and integrations.
+Logos, icons, and banners live in [`Tasklynx-logos/`](Tasklynx-logos). Use them for articles, packages, and integrations.
 
 ## License
 
