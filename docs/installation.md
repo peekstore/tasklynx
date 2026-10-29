@@ -62,6 +62,95 @@ DRY_RUN=1 sh installer.sh
 
 On Windows, run `.\installer.ps1 -DryRun` from a checkout.
 
+## Package managers
+
+### Homebrew (macOS and Linux)
+
+```bash
+brew install peekstore/tasklynx/tasklynx
+# or from local formula:
+brew install ./Formula/tasklynx.rb
+```
+
+### mise
+
+Install via mise using GitHub Release binaries:
+
+```bash
+mise use -g ubi:peekstore/tasklynx
+```
+
+Or register the mise/asdf plugin:
+
+```bash
+mise plugins install tasklynx https://github.com/peekstore/tasklynx
+mise use -g tasklynx@latest
+```
+
+### Pacman (Arch Linux)
+
+Install via the included PKGBUILD:
+
+```bash
+cd packaging/pacman
+makepkg -si
+```
+
+### APT (Debian, Ubuntu, Pop!_OS)
+
+Download the `.deb` release package from [Releases](https://github.com/peekstore/tasklynx/releases):
+
+```bash
+sudo apt install ./tasklynx_0.0.1-beta-2_amd64.deb
+# or:
+sudo dpkg -i tasklynx_0.0.1-beta-2_amd64.deb
+```
+
+### npm / npx (Node.js)
+
+Run on demand without global installation:
+
+```bash
+npx tasklynx
+# or with alias:
+npx tasklynx board
+```
+
+Or install globally:
+
+```bash
+npm install -g tasklynx
+```
+
+### pipx (Python)
+
+Install as an isolated command-line tool with automatic binary resolution:
+
+```bash
+pipx install git+https://github.com/peekstore/tasklynx.git#subdirectory=packaging/pipx
+# or:
+pipx install tasklynx
+```
+
+### Winget (Windows Package Manager)
+
+```powershell
+winget install peekstore.tasklynx
+```
+
+### Scoop (Windows)
+
+```powershell
+scoop bucket add tasklynx https://github.com/peekstore/tasklynx
+scoop install tasklynx
+```
+
+### Chocolatey (Windows)
+
+```powershell
+choco install tasklynx
+```
+
 ## Nix and NixOS
 
 ```bash
@@ -102,11 +191,26 @@ To cross-compile from a desktop checkout, use [`build-android-termux.sh`](https:
 
 ## Manual download
 
-Download the archive for your platform from [Releases](https://github.com/peekstore/tasklynx/releases), verify it against `SHA256SUMS.txt`, and place the binary on your `PATH`.
+Download the binary for your platform from [Releases](https://github.com/peekstore/tasklynx/releases), verify it against `SHA256SUMS.txt`, and place it on your `PATH`.
 
 ```bash
 sha256sum -c SHA256SUMS.txt
 ```
+
+### Security Notes (macOS Gatekeeper and Windows SmartScreen)
+
+Tasklynx release binaries are currently not signed with paid Apple or Microsoft developer certificates. When downloading manually:
+
+- **macOS Gatekeeper**: If macOS prevents execution with *"tasklynx cannot be opened because the developer cannot be verified"*, remove the quarantine attribute:
+  ```bash
+  xattr -d com.apple.quarantine /path/to/tasklynx
+  ```
+  Alternatively, open **System Settings → Privacy & Security** and click **Allow Anyway**.
+
+- **Windows SmartScreen**: If Windows displays *"Windows protected your PC"*, click **More info** and then **Run anyway**. You can also unblock the executable in PowerShell:
+  ```powershell
+  Unblock-File -Path .\tasklynx-windows-amd64.exe
+  ```
 
 ## From source
 
@@ -133,7 +237,11 @@ This re-runs the official installer and replaces the binary in place.
 tx self uninstall
 ```
 
-This removes the binary and the `tx` alias.
+This removes the binary and the `tx` alias while leaving your data and config intact. To completely purge config and tasks:
+
+```bash
+tx self uninstall --purge
+```
 
 ### Installer script (Linux, macOS, Termux)
 

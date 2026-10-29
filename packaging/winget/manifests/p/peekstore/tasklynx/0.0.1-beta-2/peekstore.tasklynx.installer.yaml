@@ -1,0 +1,24 @@
+PackageIdentifier: peekstore.tasklynx
+PackageVersion: 0.0.1-beta-2
+Platform:
+  - Windows.Desktop
+InstallModes:
+  - silent
+  - silentWithProgress
+Installers:
+  - Architecture: x64
+    InstallerType: portable
+    InstallerUrl: https://github.com/peekstore/tasklynx/releases/download/v0.0.1-beta-2/tasklynx-windows-amd64.exe
+    InstallerSha256: 7f33919e1a2d1d4db74c7604bebf229da9f1a23bfeb82488d0113c4c920fb6c7
+    Commands:
+      - tasklynx
+      - tx
+  - Architecture: arm64
+    InstallerType: portable
+    InstallerUrl: https://github.com/peekstore/tasklynx/releases/download/v0.0.1-beta-2/tasklynx-windows-arm64.exe
+    InstallerSha256: 7f33919e1a2d1d4db74c7604bebf229da9f1a23bfeb82488d0113c4c920fb6c7
+    Commands:
+      - tasklynx
+      - tx
+ManifestType: installer
+ManifestVersion: 1.6.0

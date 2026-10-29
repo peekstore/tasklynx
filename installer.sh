@@ -7,18 +7,21 @@ VERSION_URL="https://raw.githubusercontent.com/peekstore/${PROJECT_NAME}/main/.v
 RELEASE_URL="https://github.com/peekstore/${PROJECT_NAME}/releases/download"
 
 IS_UNINSTALL=false
+IS_PURGE=false
 for arg in "$@"; do
     case "$arg" in
         --selfuninstall|--uninstall|-u) IS_UNINSTALL=true ;;
+        --purge) IS_PURGE=true ;;
     esac
 done
 
 if [ "$IS_UNINSTALL" = true ]; then
     if [ -n "${XDG_CONFIG_HOME:-}" ]; then
-        BIN_DIR="$XDG_CONFIG_HOME/peekstore/${PROJECT_NAME}/bin"
+        BASE_DIR="$XDG_CONFIG_HOME/peekstore/${PROJECT_NAME}"
     else
-        BIN_DIR="$HOME/.config/peekstore/${PROJECT_NAME}/bin"
+        BASE_DIR="$HOME/.config/peekstore/${PROJECT_NAME}"
     fi
+    BIN_DIR="$BASE_DIR/bin"
     echo ""
     echo "Tasklynx Uninstaller"
     echo ""
@@ -29,6 +32,13 @@ if [ "$IS_UNINSTALL" = true ]; then
         rm -f "${BIN_DIR}/tx" && echo "  Removed ${BIN_DIR}/tx"
     fi
     [ -d "$BIN_DIR" ] && rmdir "$BIN_DIR" 2>/dev/null || true
+    if [ "$IS_PURGE" = true ]; then
+        rm -rf "$BASE_DIR" && echo "  Purged config directory: $BASE_DIR"
+        DATA_DIR="${TASKLYNX_HOME:-$HOME/.local/share/tasklynx}"
+        rm -rf "$DATA_DIR" && echo "  Purged data directory: $DATA_DIR"
+    else
+        echo "  Note: config and data directories preserved. Use --purge to remove."
+    fi
     echo ""
     echo "Tasklynx uninstalled. Restart your terminal to apply PATH changes."
     exit 0

@@ -1,0 +1,18 @@
+cff-version: 1.2.0
+message: "If you use Tasklynx in your research or project, please cite it as below."
+authors:
+  - family-names: "Khan"
+    given-names: "RK Riad"
+    email: "rkriad585@gmail.com"
+title: "Tasklynx: Developer-first local task manager with Git-style workflows"
+version: 0.0.1-beta-2
+date-released: 2026-10-28
+url: "https://github.com/peekstore/tasklynx"
+license: "MIT"
+keywords:
+  - tasks
+  - todo
+  - kanban
+  - cli
+  - tui
+  - developer-tools

@@ -1,0 +1,42 @@
+{
+  "name": "tasklynx",
+  "version": "0.0.1-beta-2",
+  "description": "Developer-first local task manager with Git-style workflows and a terminal-native dashboard",
+  "main": "bin/tasklynx.js",
+  "bin": {
+    "tasklynx": "bin/tasklynx.js",
+    "tx": "bin/tasklynx.js"
+  },
+  "files": [
+    "bin/",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "test": "node bin/tasklynx.js --version"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/peekstore/tasklynx.git"
+  },
+  "keywords": [
+    "tasklynx",
+    "tasks",
+    "todo",
+    "kanban",
+    "cli",
+    "tui",
+    "git",
+    "productivity",
+    "developer-tools"
+  ],
+  "author": "RK Riad Khan <rkriad585@gmail.com>",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/peekstore/tasklynx/issues"
+  },
+  "homepage": "https://github.com/peekstore/tasklynx#readme",
+  "engines": {
+    "node": ">=16.0.0"
+  }
+}

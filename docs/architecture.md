@@ -49,32 +49,33 @@ Serde deserialization uses defaults for missing fields, so older stores keep loa
 ## Storage guarantees
 
 - **One file** — `tasks.json` in the platform data directory, or under `TASKLYNX_HOME`.
-- **Atomic writes** — the store serializes to `tasks.json.tmp`, then renames over the target. A crash cannot leave a partially written file.
-- **No locking across processes** — concurrent writers are last-write-wins. Do not run multiple mutating commands against the same store at once.
+- **Atomic writes & durability** — the store serializes to `tasks.json.tmp`, calls `sync_all()` for filesystem durability, and renames over the target. A crash cannot leave a partially written file.
+- **Cross-process safety** — mutating operations acquire an advisory file lock (`.lock`) with timeout and stale-lock recovery, preventing race conditions between concurrent CLI or web server instances.
 
 ## Config
 
 Config is separate from data:
 
 - `~/.config/peekstore/tasklynx/config.toml` (or `$XDG_CONFIG_HOME/...`).
-- Missing or unreadable config falls back to `AppConfig::default()`.
+- Missing or partial config safely falls back to `AppConfig::default()`.
 
 ## Web server
 
 - Built on `axum` and `tokio`.
-- Serves a single embedded HTML page and SVG favicon via `include_str!`, so the binary is self-contained.
-- JSON API: `GET /api/tasks`, `POST /api/tasks`, `PUT /api/tasks/{id}`.
-- Binds to `127.0.0.1:8787` by default; there is no authentication by design.
+- Serves an embedded single-page application and SVG favicon via `include_str!`, keeping the binary fully self-contained.
+- JSON API: `GET /api/tasks`, `POST /api/tasks`, `PUT /api/tasks/{id}`, `DELETE /api/tasks/{id}`.
+- Hardened with `DefaultBodyLimit` (2MB) and security headers (`CSP`, `nosniff`, `X-Frame-Options: DENY`, `no-referrer`).
+- Binds to `127.0.0.1:8787` by default.
 
 ## TUI
 
 - Built on `ratatui` and `crossterm`.
-- Renders three columns (Todo, Doing, Done) and requires no mouse.
+- Interactive 3-column Kanban workspace supporting cursor navigation (`j`/`k`), column switching (`h`/`l`), status advancement (`Space`), completion toggle (`x`), and branch cycling (`b`).
 
 ## Design constraints
 
-- **Single binary** — no runtime assets or plugin system.
+- **Single binary** — no runtime assets or external dynamic libraries.
 - **Local-first** — no network calls at runtime; `tx self update` shells out to the installer explicitly.
-- **Small dependency surface** — clap, serde, chrono, uuid, anyhow, dirs, ratatui, crossterm, axum, tokio, toml.
+- **Small dependency surface** — clap, clap_complete, clap_mangen, serde, chrono, uuid, anyhow, dirs, ratatui, crossterm, axum, tokio, toml.
 
 [Back to README](https://github.com/peekstore/tasklynx/blob/main/README.md)

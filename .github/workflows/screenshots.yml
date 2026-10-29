@@ -1,0 +1,67 @@
+name: Capture Screenshots
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'src/web.rs'
+      - 'tools/capture_real_screenshots.js'
+      - 'tools/package.json'
+
+permissions:
+  contents: write
+
+jobs:
+  capture-screenshots:
+    name: "Capture Real Screenshots via Chromium & Puppeteer"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install system Chromium and fonts
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y chromium-browser fonts-liberation fonts-dejavu-core
+
+      - name: Build tasklynx release binary
+        run: cargo build --release
+
+      - name: Install screenshot generator tools
+        run: |
+          cd tools
+          npm install
+
+      - name: Capture screenshots
+        env:
+          CHROME_BIN: /usr/bin/chromium-browser
+        run: |
+          cd tools
+          npm run screenshots
+
+      - name: Upload screenshots artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: tasklynx-screenshots
+          path: Screenshots/
+
+      - name: Commit and push if screenshots changed
+        if: github.ref == 'refs/heads/main'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add Screenshots/
+          if git diff --staged --quiet; then
+            echo "No screenshot changes to commit."
+          else
+            git commit -m "chore(screenshots): auto-update screenshots via chromium"
+            git push
+          fi

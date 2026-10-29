@@ -1,0 +1,17 @@
+pkgbase = tasklynx-bin
+	pkgdesc = Developer-first local task manager with Git-style workflows and terminal dashboard
+	pkgver = 0.0.1.beta2
+	pkgrel = 1
+	url = https://github.com/peekstore/tasklynx
+	arch = x86_64
+	arch = aarch64
+	license = MIT
+	provides = tasklynx
+	provides = tx
+	conflicts = tasklynx
+	source_x86_64 = tasklynx-x86_64-v0.0.1-beta-2::https://github.com/peekstore/tasklynx/releases/download/v0.0.1-beta-2/tasklynx-linux-amd64
+	sha256sums_x86_64 = SKIP
+	source_aarch64 = tasklynx-aarch64-v0.0.1-beta-2::https://github.com/peekstore/tasklynx/releases/download/v0.0.1-beta-2/tasklynx-linux-arm64
+	sha256sums_aarch64 = SKIP
+
+pkgname = tasklynx-bin

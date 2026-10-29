@@ -1,0 +1,21 @@
+PackageIdentifier: peekstore.tasklynx
+PackageVersion: 0.0.1-beta-2
+PackageName: Tasklynx
+Publisher: RK Riad Khan
+License: MIT
+ShortDescription: Developer-first local task manager with Git-style workflows and terminal dashboard
+Installers:
+  - Architecture: x64
+    InstallerType: portable
+    InstallerUrl: https://github.com/peekstore/tasklynx/releases/download/v0.0.1-beta-2/tasklynx-windows-amd64.exe
+    Commands:
+      - tasklynx
+      - tx
+  - Architecture: arm64
+    InstallerType: portable
+    InstallerUrl: https://github.com/peekstore/tasklynx/releases/download/v0.0.1-beta-2/tasklynx-windows-arm64.exe
+    Commands:
+      - tasklynx
+      - tx
+ManifestType: singleton
+ManifestVersion: 1.6.0

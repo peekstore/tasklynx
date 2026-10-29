@@ -155,6 +155,19 @@ tx export > tasks.json
 
 `--format` defaults to `json`. Any value other than `md` produces JSON.
 
+## Importing / Backup / Restore
+
+```bash
+tx import backup.json
+tx import tasks.md
+tx import --replace backup.json
+cat tasks.json | tx import
+```
+
+- Supports JSON (either a full `ProjectData` export or an array of `Task` objects) and Markdown checklists.
+- Merges with existing tasks by default (updating matching IDs and appending new ones).
+- Pass `--replace` to overwrite all existing tasks.
+
 ## Web dashboard
 
 ```bash
@@ -171,8 +184,9 @@ Defaults come from `config.toml`. The server exposes:
 | `GET` | `/api/tasks` | Full project data as JSON |
 | `POST` | `/api/tasks` | Create a task from a JSON body |
 | `PUT` | `/api/tasks/{id}` | Replace a task |
+| `DELETE` | `/api/tasks/{id}` | Delete a task |
 
-There is no authentication. Keep the bind address on `127.0.0.1` unless you add access control.
+The server automatically sets security headers (`Content-Security-Policy`, `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer`) and enforces a 2MB request body limit. There is no authentication; keep the bind address on `127.0.0.1` unless behind a secure reverse proxy.
 
 ## Terminal board
 
@@ -180,7 +194,33 @@ There is no authentication. Keep the bind address on `127.0.0.1` unless you add 
 tx board
 ```
 
-Opens an interactive Kanban board. Use the arrow keys to move between columns and `q` to quit.
+Opens an interactive terminal Kanban board:
+- `h` / `l` or `←` / `→` — switch between columns (Todo, Doing, Done).
+- `j` / `k` or `↓` / `↑` — navigate tasks within the active column.
+- `Space` / `Enter` — advance task status (`Todo` → `Doing` → `Done`).
+- `x` — toggle complete / reopen.
+- `b` — cycle through active branches.
+- `q` / `Esc` — save changes and quit.
+
+## Shell completions
+
+```bash
+tx completions bash >> ~/.bashrc
+tx completions zsh > "${fpath[1]}/_tasklynx"
+tx completions fish > ~/.config/fish/completions/tasklynx.fish
+tx completions powershell >> $PROFILE
+```
+
+Generates completion scripts for `bash`, `elvish`, `fish`, `powershell`, or `zsh`.
+
+## Man page
+
+```bash
+tx man | man -l -
+tx man > /usr/local/share/man/man1/tasklynx.1
+```
+
+Renders a standard roff-formatted UNIX manual page for Tasklynx.
 
 ## Configuration commands
 

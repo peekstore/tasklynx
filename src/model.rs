@@ -134,6 +134,7 @@ impl Default for ProjectData {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
 pub struct AppConfig {
     pub host: String,
     pub port: u16,
@@ -168,5 +169,48 @@ pub fn local_due_date(s: &str) -> anyhow::Result<DateTime<Utc>> {
         chrono::LocalResult::Single(local) => Ok(local.with_timezone(&Utc)),
         chrono::LocalResult::Ambiguous(a, _) => Ok(a.with_timezone(&Utc)),
         chrono::LocalResult::None => Ok(naive.and_utc()),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn task() -> Task {
+        Task::new(
+            "Test".into(),
+            "default".into(),
+            "main".into(),
+            Priority::Normal,
+            vec![],
+            None,
+        )
+    }
+
+    #[test]
+    fn parses_iso_due_date() {
+        assert!(local_due_date("2026-12-31").is_ok());
+    }
+
+    #[test]
+    fn rejects_invalid_due_date() {
+        assert!(local_due_date("31-12-2026").is_err());
+        assert!(local_due_date("tomorrow").is_err());
+    }
+
+    #[test]
+    fn overdue_task_is_detected() {
+        let mut t = task();
+        t.due = Some(Utc::now() - chrono::Duration::days(1));
+        assert!(t.overdue());
+    }
+
+    #[test]
+    fn completed_task_is_not_overdue() {
+        let mut t = task();
+        t.due = Some(Utc::now() - chrono::Duration::days(1));
+        t.complete();
+        assert!(!t.overdue());
+        assert!(t.completed_at.is_some());
     }
 }

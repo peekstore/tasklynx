@@ -19,8 +19,10 @@ $Shortcut   = Join-Path $env:APPDATA "Microsoft\Windows\Start Menu\Programs\Task
 
 # ── Uninstall ────────────────────────────────────────────────────────────────
 $IsUninstall = $false
+$IsPurge = $false
 foreach ($a in $args) {
     if ($a -in @("--selfuninstall", "-selfuninstall", "--uninstall", "-u")) { $IsUninstall = $true }
+    if ($a -in @("--purge", "-purge")) { $IsPurge = $true }
 }
 
 if ($IsUninstall) {
@@ -31,7 +33,12 @@ if ($IsUninstall) {
     if (Test-Path $TxPath)     { Remove-Item $TxPath -Force;     Write-Host "  Removed $TxPath" -ForegroundColor Green }
     if (Test-Path $Shortcut)   { Remove-Item $Shortcut -Force;   Write-Host "  Removed Start Menu shortcut" -ForegroundColor Green }
     if (Test-Path $BinDir)     { Remove-Item $BinDir -Recurse -Force -ErrorAction SilentlyContinue }
-    if (Test-Path $ConfigDir)  { Remove-Item $ConfigDir -Recurse -Force -ErrorAction SilentlyContinue }
+    if ($IsPurge -and (Test-Path $ConfigDir)) {
+        Remove-Item $ConfigDir -Recurse -Force -ErrorAction SilentlyContinue
+        Write-Host "  Purged config directory: $ConfigDir" -ForegroundColor Green
+    } else {
+        Write-Host "  Note: config directory ($ConfigDir) preserved. Use --purge to remove." -ForegroundColor Gray
+    }
 
     $userPath = [Environment]::GetEnvironmentVariable("Path", [EnvironmentVariableTarget]::User)
     if ($userPath) {

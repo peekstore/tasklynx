@@ -25,9 +25,11 @@ jobs:
           if [ "${{ github.event_name }}" = "workflow_run" ]; then
             v="${{ github.event.workflow_run.head_branch }}"
           fi
-          if [ -z "$v" ] || ! curl -fsSL -o /dev/null \
+          auth=(-H "Authorization: Bearer ${{ github.token }}" -H "Accept: application/vnd.github+json")
+          if [ -z "$v" ] || ! curl -fsSL -o /dev/null "${auth[@]}" \
               "https://api.github.com/repos/peekstore/tasklynx/releases/tags/$v"; then
-            v=$(curl -fsSL "https://api.github.com/repos/peekstore/tasklynx/releases?per_page=30" \
+            v=$(curl -fsSL "${auth[@]}" \
+              "https://api.github.com/repos/peekstore/tasklynx/releases?per_page=30" \
               | jq -r '[.[] | select(.draft == false)][0].tag_name // empty')
           fi
           if [ -z "$v" ]; then
@@ -131,7 +133,10 @@ jobs:
       - uses: cachix/install-nix-action@v27
         with:
           nix_path: nixpkgs=channel:nixos-unstable
-      - name: Test Nix flake run
+      - name: Check flake
+        run: |
+          nix --extra-experimental-features "nix-command flakes" flake check --no-build
+      - name: Run from flake
         run: |
           nix --extra-experimental-features "nix-command flakes" \
-            run github:peekstore/tasklynx -- --version 2>&1 | tail -5 || true
+            run . -- --version

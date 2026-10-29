@@ -1,0 +1,21 @@
+# Maintainer: RK Riad Khan <rkriad585@gmail.com>
+pkgname=tasklynx-bin
+pkgver=0.0.1.beta2
+_tag=v0.0.1-beta-2
+pkgrel=1
+pkgdesc="Developer-first local task manager with Git-style workflows and terminal dashboard"
+arch=('x86_64' 'aarch64')
+url="https://github.com/peekstore/tasklynx"
+license=('MIT')
+provides=('tasklynx' 'tx')
+conflicts=('tasklynx')
+
+source_x86_64=("tasklynx-x86_64-${_tag}::https://github.com/peekstore/tasklynx/releases/download/${_tag}/tasklynx-linux-amd64")
+source_aarch64=("tasklynx-aarch64-${_tag}::https://github.com/peekstore/tasklynx/releases/download/${_tag}/tasklynx-linux-arm64")
+sha256sums_x86_64=('SKIP')
+sha256sums_aarch64=('SKIP')
+
+package() {
+    install -Dm755 "${srcdir}/tasklynx-"* "${pkgdir}/usr/bin/tasklynx"
+    ln -s /usr/bin/tasklynx "${pkgdir}/usr/bin/tx"
+}

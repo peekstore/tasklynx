@@ -2,9 +2,17 @@
 name = "tasklynx"
 version = "0.0.1-beta-2"
 edition = "2021"
+rust-version = "1.75"
 description = "A developer-first local task manager with Git-style workflows and a terminal-native dashboard."
 license = "MIT"
+authors = ["RK Riad Khan <rkriad585@gmail.com>"]
 repository = "https://github.com/peekstore/tasklynx"
+homepage = "https://github.com/peekstore/tasklynx"
+documentation = "https://peekstore.github.io/tasklynx/"
+readme = "README.md"
+keywords = ["tasks", "todo", "kanban", "cli", "tui"]
+categories = ["command-line-utilities", "productivity"]
+exclude = ["/site", "/Screenshots", "/tasklynx-logos", "/docs", "/.github"]
 build = "build.rs"
 
 [dependencies]
@@ -12,6 +20,8 @@ anyhow = "1"
 axum = "0.8"
 chrono = { version = "0.4", features = ["serde"] }
 clap = { version = "4", features = ["derive"] }
+clap_complete = "4"
+clap_mangen = "0.2"
 crossterm = "0.29"
 dirs = "6"
 ratatui = "0.29"

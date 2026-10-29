@@ -1,0 +1,14 @@
+Source: tasklynx
+Section: utils
+Priority: optional
+Maintainer: RK Riad Khan <rkriad585@gmail.com>
+Build-Depends: debhelper-compat (= 13), cargo, rustc
+Standards-Version: 4.6.2
+Homepage: https://github.com/peekstore/tasklynx
+
+Package: tasklynx
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}
+Description: developer-first local task manager with Git-style workflows
+ Tasklynx is a local-first task manager featuring a terminal-native
+ dashboard, Git-style branches, and an embedded web interface.

@@ -1,0 +1,23 @@
+PackageIdentifier: peekstore.tasklynx
+PackageVersion: 0.0.1-beta-2
+PackageLocale: en-US
+Publisher: RK Riad Khan
+PublisherUrl: https://github.com/peekstore
+PublisherSupportUrl: https://github.com/peekstore/tasklynx/issues
+PackageName: Tasklynx
+PackageUrl: https://github.com/peekstore/tasklynx
+License: MIT
+LicenseUrl: https://github.com/peekstore/tasklynx/blob/main/LICENSE
+Copyright: Copyright (c) 2026 RK Riad Khan
+ShortDescription: Developer-first local task manager with Git-style workflows and a terminal-native dashboard.
+Description: Tasklynx is a local-first task manager featuring Git-style branches, Ratatui Kanban board, and embedded web UI.
+Moniker: tasklynx
+Tags:
+  - task
+  - todo
+  - kanban
+  - productivity
+  - cli
+  - terminal
+ManifestType: defaultLocale
+ManifestVersion: 1.6.0

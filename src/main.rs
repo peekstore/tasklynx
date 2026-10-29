@@ -3,9 +3,12 @@ mod model;
 mod store;
 mod tui;
 mod web;
+
 use anyhow::Result;
-use clap::{Parser, Subcommand};
+use clap::{CommandFactory, Parser, Subcommand};
 use model::{local_due_date, Priority, Task};
+use std::path::PathBuf;
+
 #[derive(Parser)]
 #[command(
     name = "tasklynx",
@@ -17,6 +20,7 @@ struct Cli {
     #[command(subcommand)]
     command: Option<Cmd>,
 }
+
 #[derive(Subcommand)]
 enum Cmd {
     Init,
@@ -30,6 +34,12 @@ enum Cmd {
         priority: String,
         #[arg(long)]
         due: Option<String>,
+        #[arg(short, long)]
+        description: Option<String>,
+        #[arg(long)]
+        estimate: Option<u32>,
+        #[arg(long)]
+        commit: Option<String>,
     },
     List {
         #[arg(long)]
@@ -68,6 +78,10 @@ enum Cmd {
         #[arg(long)]
         project: Option<String>,
         #[arg(long)]
+        estimate: Option<u32>,
+        #[arg(long)]
+        commit: Option<String>,
+        #[arg(long)]
         add_tag: Vec<String>,
         #[arg(long)]
         remove_tag: Vec<String>,
@@ -88,6 +102,13 @@ enum Cmd {
         #[arg(long, default_value = "json")]
         format: String,
     },
+    Import {
+        path: Option<PathBuf>,
+        #[arg(long, default_value = "json")]
+        format: String,
+        #[arg(long)]
+        replace: bool,
+    },
     Web {
         #[arg(long)]
         host: Option<String>,
@@ -99,6 +120,11 @@ enum Cmd {
         #[command(subcommand)]
         action: ConfigCmd,
     },
+    Completions {
+        #[arg(value_enum)]
+        shell: clap_complete::Shell,
+    },
+    Man,
     #[command(name = "self")]
     #[allow(clippy::enum_variant_names)]
     SelfCmd {
@@ -106,6 +132,7 @@ enum Cmd {
         action: SelfSubCmd,
     },
 }
+
 #[derive(Subcommand)]
 enum BranchCmd {
     List,
@@ -113,16 +140,22 @@ enum BranchCmd {
     Switch { name: String },
     Delete { name: String },
 }
+
 #[derive(Subcommand)]
 enum ConfigCmd {
     Init,
     Show,
 }
+
 #[derive(Subcommand)]
 enum SelfSubCmd {
     Update,
-    Uninstall,
+    Uninstall {
+        #[arg(long)]
+        purge: bool,
+    },
 }
+
 fn priority(s: &str) -> Priority {
     match s.to_lowercase().as_str() {
         "low" => Priority::Low,
@@ -131,13 +164,16 @@ fn priority(s: &str) -> Priority {
         _ => Priority::Normal,
     }
 }
+
 #[tokio::main]
 async fn main() -> Result<()> {
     let cli = Cli::parse();
     let cmd = cli.command.unwrap_or(Cmd::Board);
     let mut data = store::load()?;
+
     match cmd {
         Cmd::Init => {
+            let _lock = store::StoreLock::acquire()?;
             store::save(&data)?;
             let _ = config::save(&config::load()?);
             println!("initialized {}", store::path().display());
@@ -148,9 +184,13 @@ async fn main() -> Result<()> {
             tag,
             priority: pri,
             due,
+            description,
+            estimate,
+            commit,
         } => {
+            let _lock = store::StoreLock::acquire()?;
             let due = due.map(|d| local_due_date(&d)).transpose()?;
-            let t = Task::new(
+            let mut t = Task::new(
                 title,
                 project,
                 data.current_branch.clone(),
@@ -158,6 +198,12 @@ async fn main() -> Result<()> {
                 tag,
                 due,
             );
+            if let Some(desc) = description {
+                t.description = desc;
+            }
+            t.estimate_minutes = estimate;
+            t.commit = commit;
+
             let id = t.id.to_string();
             store::add(&mut data, t)?;
             println!("{}", id);
@@ -199,6 +245,7 @@ async fn main() -> Result<()> {
             }
         }
         Cmd::Complete { id } => {
+            let _lock = store::StoreLock::acquire()?;
             let tid = store::find_mut(&mut data, &id)?.id.to_string();
             {
                 let t = store::find_mut(&mut data, &id)?;
@@ -208,6 +255,7 @@ async fn main() -> Result<()> {
             println!("done {}", &tid[..8]);
         }
         Cmd::Reopen { id } => {
+            let _lock = store::StoreLock::acquire()?;
             let tid = store::find_mut(&mut data, &id)?.id.to_string();
             {
                 let t = store::find_mut(&mut data, &id)?;
@@ -219,6 +267,7 @@ async fn main() -> Result<()> {
             println!("reopened {}", &tid[..8]);
         }
         Cmd::Doing { id } => {
+            let _lock = store::StoreLock::acquire()?;
             let tid = store::find_mut(&mut data, &id)?.id.to_string();
             {
                 let t = store::find_mut(&mut data, &id)?;
@@ -229,11 +278,9 @@ async fn main() -> Result<()> {
             println!("doing {}", &tid[..8]);
         }
         Cmd::Delete { id } => {
-            let before = data.tasks.len();
-            data.tasks.retain(|t| !t.id.to_string().starts_with(&id));
-            if data.tasks.len() == before {
-                return Err(anyhow::anyhow!("task not found: {id}"));
-            }
+            let _lock = store::StoreLock::acquire()?;
+            let target_id = store::find(&data, &id)?.id;
+            data.tasks.retain(|t| t.id != target_id);
             store::save(&data)?;
             println!("deleted");
         }
@@ -244,26 +291,35 @@ async fn main() -> Result<()> {
             priority: pri,
             due,
             project,
+            estimate,
+            commit,
             add_tag,
             remove_tag,
         } => {
+            let _lock = store::StoreLock::acquire()?;
             let tid = store::find_mut(&mut data, &id)?.id.to_string();
             {
                 let t = store::find_mut(&mut data, &id)?;
                 if let Some(v) = title {
-                    t.title = v
+                    t.title = v;
                 }
                 if let Some(v) = description {
-                    t.description = v
+                    t.description = v;
                 }
                 if let Some(v) = pri {
-                    t.priority = priority(&v)
+                    t.priority = priority(&v);
                 }
                 if let Some(v) = due {
-                    t.due = Some(local_due_date(&v)?)
+                    t.due = Some(local_due_date(&v)?);
                 }
                 if let Some(v) = project {
-                    t.project = v
+                    t.project = v;
+                }
+                if let Some(v) = estimate {
+                    t.estimate_minutes = Some(v);
+                }
+                if let Some(v) = commit {
+                    t.commit = Some(v);
                 }
                 for tag in add_tag {
                     if !t.tags.contains(&tag) {
@@ -279,9 +335,8 @@ async fn main() -> Result<()> {
             println!("edited {}", &tid[..8]);
         }
         Cmd::Duplicate { id } => {
-            let t = store::find(&data, &id)
-                .cloned()
-                .ok_or_else(|| anyhow::anyhow!("task not found"))?;
+            let _lock = store::StoreLock::acquire()?;
+            let t = store::find(&data, &id)?.clone();
             let mut n = t.clone();
             n.id = uuid::Uuid::new_v4();
             n.title = format!("Copy: {}", n.title);
@@ -354,6 +409,7 @@ async fn main() -> Result<()> {
                 }
             }
             BranchCmd::Create { name } => {
+                let _lock = store::StoreLock::acquire()?;
                 if !data.branches.contains(&name) {
                     data.branches.push(name.clone());
                     store::save(&data)?;
@@ -361,6 +417,7 @@ async fn main() -> Result<()> {
                 println!("branch {}", name)
             }
             BranchCmd::Switch { name } => {
+                let _lock = store::StoreLock::acquire()?;
                 if !data.branches.contains(&name) {
                     return Err(anyhow::anyhow!("branch not found"));
                 }
@@ -368,6 +425,7 @@ async fn main() -> Result<()> {
                 store::save(&data)?
             }
             BranchCmd::Delete { name } => {
+                let _lock = store::StoreLock::acquire()?;
                 if name == data.current_branch {
                     return Err(anyhow::anyhow!("cannot delete current branch"));
                 }
@@ -385,11 +443,39 @@ async fn main() -> Result<()> {
                 println!("{}", store::export_json(&data)?)
             }
         }
+        Cmd::Import {
+            path,
+            format,
+            replace,
+        } => {
+            let _lock = store::StoreLock::acquire()?;
+            let content = match path {
+                Some(p) => std::fs::read_to_string(&p)?,
+                None => {
+                    use std::io::Read;
+                    let mut buf = String::new();
+                    std::io::stdin().read_to_string(&mut buf)?;
+                    buf
+                }
+            };
+            let is_md = format == "md" || content.trim_start().starts_with('#');
+            let (added, updated) = if is_md {
+                store::import_md(&mut data, &content, replace)?
+            } else {
+                store::import_json(&mut data, &content, replace)?
+            };
+            store::save(&data)?;
+            if replace {
+                println!("replaced store with {} tasks", added);
+            } else {
+                println!("imported: {} new, {} updated", added, updated);
+            }
+        }
         Cmd::Web { host, port } => {
             let c = config::load()?;
             web::serve(host.unwrap_or(c.host), port.unwrap_or(c.port), data).await?
         }
-        Cmd::Board => tui::run(&data)?,
+        Cmd::Board => tui::run(&mut data)?,
         Cmd::Config { action } => match action {
             ConfigCmd::Init => {
                 config::save(&config::load()?)?;
@@ -397,15 +483,43 @@ async fn main() -> Result<()> {
             }
             ConfigCmd::Show => println!("{}", toml::to_string_pretty(&config::load()?)?),
         },
+        Cmd::Completions { shell } => {
+            let mut cmd = Cli::command();
+            clap_complete::generate(shell, &mut cmd, "tasklynx", &mut std::io::stdout());
+        }
+        Cmd::Man => {
+            let cmd = Cli::command();
+            let man = clap_mangen::Man::new(cmd);
+            man.render(&mut std::io::stdout())?;
+        }
         Cmd::SelfCmd { action } => match action {
             SelfSubCmd::Update => {
                 println!("Checking for updates...");
-                let _ = std::process::Command::new("sh")
-                    .arg("-c")
-                    .arg("curl -fsSL https://raw.githubusercontent.com/peekstore/tasklynx/main/installer.sh | sh")
-                    .status();
+                let status = if cfg!(windows) {
+                    std::process::Command::new("powershell")
+                        .args([
+                            "-NoProfile",
+                            "-ExecutionPolicy",
+                            "Bypass",
+                            "-Command",
+                            "irm https://raw.githubusercontent.com/peekstore/tasklynx/main/installer.ps1 | iex",
+                        ])
+                        .status()
+                } else {
+                    std::process::Command::new("sh")
+                        .args([
+                            "-c",
+                            "curl -fsSL https://raw.githubusercontent.com/peekstore/tasklynx/main/installer.sh | sh",
+                        ])
+                        .status()
+                };
+                let status = status?;
+                if !status.success() {
+                    anyhow::bail!("update failed with status {status}");
+                }
+                println!("Update finished.");
             }
-            SelfSubCmd::Uninstall => {
+            SelfSubCmd::Uninstall { purge } => {
                 let exe = std::env::current_exe()?;
                 println!("Removing {}", exe.display());
                 if let Some(dir) = exe.parent() {
@@ -416,11 +530,32 @@ async fn main() -> Result<()> {
                         }
                     }
                 }
-                let _ = std::fs::remove_file(&exe);
-                if let Some(dir) = exe.parent() {
-                    let _ = std::fs::remove_dir(dir);
+                #[cfg(windows)]
+                {
+                    let command = format!("/C timeout /t 2 >nul & del /f /q \"{}\"", exe.display());
+                    match std::process::Command::new("cmd").arg(command).status() {
+                        Ok(s) if s.success() => {}
+                        _ => eprintln!(
+                            "Could not schedule removal of {}. Delete it manually.",
+                            exe.display()
+                        ),
+                    }
                 }
-                println!("Note: config/data in config and data dirs remain.");
+                #[cfg(not(windows))]
+                {
+                    std::fs::remove_file(&exe)?;
+                    if let Some(dir) = exe.parent() {
+                        let _ = std::fs::remove_dir(dir);
+                    }
+                }
+
+                if purge {
+                    let _ = std::fs::remove_dir_all(store::data_dir());
+                    let _ = std::fs::remove_dir_all(config::dir());
+                    println!("Purged data and config directories.");
+                } else {
+                    println!("Note: config and data directories were left in place (pass --purge to remove).");
+                }
             }
         },
     }

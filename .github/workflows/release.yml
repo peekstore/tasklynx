@@ -231,12 +231,57 @@ jobs:
         with:
           path: dist
 
-      - name: Flatten and checksum
+      - name: Flatten, archive, and checksum
         run: |
           mkdir -p final
           find dist -type f \( -name "*.exe" -o -name "tasklynx-*" \) -not -name "*.sha256" -exec cp {} final/ \;
-          find dist -name "*.sha256" -exec cp {} final/ \;
-          cd final && sha256sum * > SHA256SUMS.txt && ls -lh
+          
+          # Create tar.gz for unix and zip for windows
+          cd final
+          for bin in tasklynx-linux-* tasklynx-darwin-* tasklynx-android-*; do
+            if [ -f "$bin" ]; then
+              tar -czf "${bin}.tar.gz" "$bin"
+            fi
+          done
+          for bin in tasklynx-windows-*.exe; do
+            if [ -f "$bin" ]; then
+              zip -q "${bin%.exe}.zip" "$bin"
+            fi
+          done
+
+          # Build Debian (.deb) packages
+          if [ -f "tasklynx-linux-amd64" ]; then
+            ../packaging/debian/build_deb.sh "${{ needs.prepare.outputs.version }}" "amd64" "tasklynx-linux-amd64" "."
+          fi
+          if [ -f "tasklynx-linux-arm64" ]; then
+            ../packaging/debian/build_deb.sh "${{ needs.prepare.outputs.version }}" "arm64" "tasklynx-linux-arm64" "."
+          fi
+
+          # Generate individual sha256 checksums for archives as well
+          for f in *.tar.gz *.zip; do
+            if [ -f "$f" ]; then
+              sha256sum "$f" > "${f}.sha256"
+            fi
+          done
+
+          # Copy over individual sha256 from dist
+          find ../dist -name "*.sha256" -exec cp {} . \;
+
+          # Generate clean aggregate SHA256SUMS.txt (excluding sha256 files)
+          find . -maxdepth 1 -type f ! -name "*.sha256" ! -name "SHA256SUMS.txt" ! -name "latest.json" -exec sha256sum {} + | sort -k 2 > SHA256SUMS.txt
+
+          # Generate latest.json manifest
+          cat <<EOF > latest.json
+          {
+            "version": "${{ needs.prepare.outputs.version }}",
+            "tag": "${{ needs.prepare.outputs.tag }}",
+            "commit": "${{ needs.prepare.outputs.commit }}",
+            "release_url": "https://github.com/${{ github.repository }}/releases/tag/${{ needs.prepare.outputs.tag }}",
+            "published_at": "$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+          }
+          EOF
+
+          ls -lh
 
       - name: Remove existing releases for tag (keep tag)
         env:

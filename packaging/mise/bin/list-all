@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# List all versions from GitHub releases
+curl -s "https://api.github.com/repos/peekstore/tasklynx/releases" \
+  | grep '"tag_name":' \
+  | sed -E 's/.*"v?([^"]+)".*/\1/' \
+  | sort -V

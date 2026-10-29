@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<package xmlns="http://schemas.microsoft.com/packaging/2015/06/nuspec.xsd">
+  <metadata>
+    <id>tasklynx</id>
+    <version>0.0.1-beta-2</version>
+    <packageSourceUrl>https://github.com/peekstore/tasklynx/tree/main/packaging/chocolatey</packageSourceUrl>
+    <owners>rkriad585</owners>
+    <title>Tasklynx</title>
+    <authors>RK Riad Khan</authors>
+    <projectUrl>https://github.com/peekstore/tasklynx</projectUrl>
+    <iconUrl>https://raw.githubusercontent.com/peekstore/tasklynx/main/assets/favicon.svg</iconUrl>
+    <copyright>2026 RK Riad Khan</copyright>
+    <licenseUrl>https://github.com/peekstore/tasklynx/blob/main/LICENSE</licenseUrl>
+    <requireLicenseAcceptance>false</requireLicenseAcceptance>
+    <projectSourceUrl>https://github.com/peekstore/tasklynx</projectSourceUrl>
+    <docsUrl>https://peekstore.github.io/tasklynx/</docsUrl>
+    <bugTrackerUrl>https://github.com/peekstore/tasklynx/issues</bugTrackerUrl>
+    <tags>tasklynx tasks todo kanban cli tui developer-tools git</tags>
+    <summary>Developer-first local task manager with Git-style workflows</summary>
+    <description>
+Tasklynx is a developer-first local task manager featuring Git-style branch workflows, an interactive terminal-native Kanban dashboard (Ratatui), and a zero-dependency embedded web interface.
+
+### Features
+- Local-first JSON store with atomic writes, durability fsync, and cross-process safety lock.
+- Interactive terminal dashboard (`tx board`) and web dashboard (`tx web`).
+- Git-style branches (`tx branch create`, `tx branch switch`).
+- Full import and export in JSON and Markdown formats.
+- Single portable binary with alias `tx`.
+    </description>
+    <releaseNotes>https://github.com/peekstore/tasklynx/releases/tag/v0.0.1-beta-2</releaseNotes>
+  </metadata>
+  <files>
+    <file src="tools\**" target="tools" />
+  </files>
+</package>

@@ -48,22 +48,42 @@ Everything is written atomically to disk, so a crash can't leave a half-written 
 
 ## Screenshots
 
-| Terminal board | Web dashboard |
-| --- | --- |
-| ![Terminal Kanban board](Screenshots/board.png) | ![Web dashboard](Screenshots/web.png) |
+<div align="center">
+  <img src="Screenshots/web.png" alt="Tasklynx Web Dashboard" width="850">
+</div>
 
-More images in [`Screenshots/`](Screenshots) and the [screenshots page](https://peekstore.github.io/tasklynx/screenshots/).
+| Kanban Board | Task Modal Editor |
+| :---: | :---: |
+| ![Kanban Board](Screenshots/board.png) | ![Task Modal Editor](Screenshots/home.png) |
+
+More images and descriptions in the [screenshots gallery](https://peekstore.github.io/tasklynx/screenshots/).
 
 ## Installation
 
-### Linux / macOS / Termux
+### Package managers
+
+| Manager | Platform | Command |
+| --- | --- | --- |
+| **Homebrew** | macOS / Linux | `brew install peekstore/tasklynx/tasklynx` |
+| **mise** | Linux / macOS | `mise use -g ubi:peekstore/tasklynx` |
+| **Pacman** | Arch Linux | `cd packaging/pacman && makepkg -si` |
+| **APT** | Debian / Ubuntu | `sudo apt install ./tasklynx_0.0.1-beta-2_amd64.deb` |
+| **npm** | Cross-platform | `npm install -g tasklynx` / `npx tasklynx` |
+| **pipx** | Cross-platform | `pipx install git+https://github.com/peekstore/tasklynx.git#subdirectory=packaging/pipx` |
+| **Winget** | Windows | `winget install peekstore.tasklynx` |
+| **Scoop** | Windows | `scoop bucket add tasklynx https://github.com/peekstore/tasklynx && scoop install tasklynx` |
+| **Chocolatey** | Windows | `choco install tasklynx` |
+| **Nix** | Linux / macOS | `nix run github:peekstore/tasklynx` |
+
+### One-line installer
+
+#### Linux / macOS / Termux
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/peekstore/tasklynx/main/installer.sh | sh
 ```
 
-The installer places `tasklynx` and the `tx` alias in
-`${XDG_CONFIG_HOME:-$HOME/.config}/peekstore/tasklynx/bin` and adds that directory to your shell `PATH`.
+The installer places `tasklynx` and the `tx` alias in `${XDG_CONFIG_HOME:-$HOME/.config}/peekstore/tasklynx/bin` and adds that directory to your shell `PATH`.
 
 Pin a specific version:
 
@@ -72,13 +92,7 @@ TASKLYNX_VERSION=v0.0.1-beta-2 \
   curl -fsSL https://raw.githubusercontent.com/peekstore/tasklynx/main/installer.sh | sh
 ```
 
-Preview what would be installed without changing anything:
-
-```bash
-DRY_RUN=1 sh installer.sh
-```
-
-### Windows
+#### Windows (PowerShell)
 
 ```powershell
 irm https://raw.githubusercontent.com/peekstore/tasklynx/main/installer.ps1 | iex
@@ -86,7 +100,7 @@ irm https://raw.githubusercontent.com/peekstore/tasklynx/main/installer.ps1 | ie
 
 The installer writes to `%USERPROFILE%\.config\peekstore\tasklynx\bin`, updates `PATH`, and creates a Start Menu shortcut.
 
-### Android (Termux)
+#### Android (Termux)
 
 Install [Termux](https://termux.dev/) from F-Droid, then run the Linux installer:
 
@@ -95,17 +109,15 @@ pkg install curl
 curl -fsSL https://raw.githubusercontent.com/peekstore/tasklynx/main/installer.sh | sh
 ```
 
-The installer detects your CPU ABI (`arm64-v8a`, `armeabi-v7a`, or `x86_64`) and downloads the matching build. To cross-compile from a desktop, use [`build-android-termux.sh`](build-android-termux.sh).
-
-### Nix
-
-```bash
-nix run github:peekstore/tasklynx -- --version
-```
+The installer detects your CPU ABI (`arm64-v8a`, `armeabi-v7a`, or `x86_64`) and downloads the matching build.
 
 ### Manual download
 
-Grab an archive for your platform from [Releases](https://github.com/peekstore/tasklynx/releases) and put the binary on your `PATH`.
+Download standalone binaries or archives from [Releases](https://github.com/peekstore/tasklynx/releases) and place them on your `PATH`. Verify checksums with:
+
+```bash
+sha256sum -c SHA256SUMS.txt
+```
 
 ### From source
 
