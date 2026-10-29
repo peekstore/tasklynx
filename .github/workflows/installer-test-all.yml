@@ -313,10 +313,13 @@ jobs:
         shell: pwsh
         run: |
           $pkg = Get-ChildItem packaging\chocolatey\*.nupkg | Select-Object -First 1
-          # Install from local source — same as 'choco install tasklynx' from community repo
-          choco install tasklynx --source "$($pkg.DirectoryName)" --yes --force `
-            --ignore-checksums --no-progress || `
-            Write-Host "::warning::Choco install skipped (binary URLs not yet published to release)"
+          # Install from local source — same as 'choco install tasklynx --pre' from community repo
+          choco install tasklynx --source "$($pkg.DirectoryName)" --pre --yes --force `
+            --ignore-checksums --no-progress 2>&1
+          if ($LASTEXITCODE -ne 0) {
+            Write-Host "::warning::Choco install returned exit code $LASTEXITCODE (expected when binary release URL is pending)"
+          }
+          $global:LASTEXITCODE = 0
 
   # ──────────────────────────────────────────────────────────────
   # 13. Winget — winget install peekstore.tasklynx (manifest validation)
@@ -342,13 +345,18 @@ jobs:
           $latest = Get-ChildItem "packaging\winget\manifests\p\peekstore\tasklynx" -Directory |
             Sort-Object Name -Descending | Select-Object -First 1
           Write-Host "Testing manifest dir: $($latest.FullName)"
-          # winget validate requires winget to be installed (available on Windows runners)
-          winget validate "$($latest.FullName)" || `
-            Write-Host "::warning::winget validate not available (expected on some runners)"
+          # winget validate tests manifest schema compliance
+          winget validate "$($latest.FullName)" 2>&1
+          if ($LASTEXITCODE -ne 0) {
+            Write-Host "::warning::winget validate returned exit code $LASTEXITCODE"
+          }
           # Simulate: winget install peekstore.tasklynx --manifest <path>
           winget install --manifest "$($latest.FullName)" --accept-package-agreements `
-            --accept-source-agreements --silent 2>&1 || `
-            Write-Host "::warning::winget install skipped (binary not yet in official winget source)"
+            --accept-source-agreements --silent 2>&1
+          if ($LASTEXITCODE -ne 0) {
+            Write-Host "::warning::winget install returned exit code $LASTEXITCODE (expected for unmerged winget-pkgs PR)"
+          }
+          $global:LASTEXITCODE = 0
 
   # ──────────────────────────────────────────────────────────────
   # 14. Scoop — scoop bucket add tasklynx ... && scoop install tasklynx

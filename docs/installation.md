@@ -89,27 +89,31 @@ mise use -g tasklynx@latest
 
 ### Pacman (Arch Linux)
 
-Install via the included PKGBUILD. You must first clone the repository, then run `makepkg` from inside the `packaging/pacman/` directory:
+**Via AUR Helper (Recommended):**
+```bash
+yay -S tasklynx-bin
+# or with paru:
+paru -S tasklynx-bin
+```
 
+**Directly via PKGBUILD (No repo clone required — run from anywhere):**
+```bash
+curl -sSL https://raw.githubusercontent.com/peekstore/tasklynx/main/packaging/pacman/PKGBUILD -o PKGBUILD && makepkg -si
+```
+
+**From Git clone:**
 ```bash
 git clone https://github.com/peekstore/tasklynx.git
 cd tasklynx/packaging/pacman
 makepkg -si
 ```
 
-> **Important:** The `cd packaging/pacman` path is relative to the project root. Running it from your home directory (`~`) will fail with "directory not found". Always `git clone` first.
-
-Or with `yay` (AUR helper):
-
-```bash
-yay -S tasklynx-bin
-```
-
 ### APT (Debian, Ubuntu, Pop!_OS)
 
-Download the `.deb` release package from [Releases](https://github.com/peekstore/tasklynx/releases):
+Download and install the `.deb` release package:
 
 ```bash
+curl -LO https://github.com/peekstore/tasklynx/releases/download/v0.0.1-beta-4/tasklynx_0.0.1-beta-4_amd64.deb
 sudo apt install ./tasklynx_0.0.1-beta-4_amd64.deb
 # or:
 sudo dpkg -i tasklynx_0.0.1-beta-4_amd64.deb
