@@ -43,6 +43,23 @@ if [ "$IS_UNINSTALL" = true ]; then
         rm -f "${BIN_DIR}/tx" && echo "  Removed ${BIN_DIR}/tx"
     fi
     [ -d "$BIN_DIR" ] && rmdir "$BIN_DIR" 2>/dev/null || true
+
+    # Clean desktop entry & icons if present
+    DESKTOP_FILE="${XDG_DATA_HOME:-$HOME/.local/share}/applications/${PROJECT_NAME}.desktop"
+    if [ -f "$DESKTOP_FILE" ]; then
+        rm -f "$DESKTOP_FILE" && echo "  Removed desktop entry: $DESKTOP_FILE"
+        if command -v update-desktop-database >/dev/null 2>&1; then
+            update-desktop-database "$(dirname "$DESKTOP_FILE")" 2>/dev/null || true
+        fi
+    fi
+    for ICON_PATH in \
+        "${XDG_DATA_HOME:-$HOME/.local/share}/icons/hicolor/256x256/apps/${PROJECT_NAME}.png" \
+        "${XDG_DATA_HOME:-$HOME/.local/share}/icons/hicolor/scalable/apps/${PROJECT_NAME}.svg" \
+        "${XDG_DATA_HOME:-$HOME/.local/share}/pixmaps/${PROJECT_NAME}.png"; do
+        if [ -f "$ICON_PATH" ]; then
+            rm -f "$ICON_PATH" && echo "  Removed icon: $ICON_PATH"
+        fi
+    done
     if [ "$IS_PURGE" = true ]; then
         rm -rf "$BASE_DIR" && echo "  Purged config directory: $BASE_DIR"
         DATA_DIR="${TASKLYNX_HOME:-$HOME/.local/share/tasklynx}"
