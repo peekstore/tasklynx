@@ -196,7 +196,7 @@ jobs:
         run: |
           ruby -c Formula/tasklynx.rb
           ruby -c packaging/homebrew/tasklynx.rb
-          brew audit --formula Formula/tasklynx.rb || true
+          brew audit --formula tasklynx || true
 
   test-mise:
     name: "mise plugin"
@@ -228,6 +228,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
+      - name: Install pyyaml
+        run: pip install pyyaml
       - name: Validate Winget YAML syntax and URLs
         run: |
           python3 -c '
