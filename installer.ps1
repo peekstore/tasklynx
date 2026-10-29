@@ -1,7 +1,9 @@
 # installer.ps1 - Installer and Uninstaller for Tasklynx on Windows
+# Supports: Windows x64 (AMD64), Windows ARM64
 # Usage:
 #   irm https://raw.githubusercontent.com/peekstore/tasklynx/main/installer.ps1 | iex
 #   & ([scriptblock]::Create((irm .../installer.ps1))) --selfuninstall
+#   & ([scriptblock]::Create((irm .../installer.ps1))) --update
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 
 $ErrorActionPreference = "Stop"
@@ -17,12 +19,14 @@ $BinaryPath = Join-Path $BinDir "${ProjectName}.exe"
 $TxPath     = Join-Path $BinDir "tx.exe"
 $Shortcut   = Join-Path $env:APPDATA "Microsoft\Windows\Start Menu\Programs\Tasklynx.lnk"
 
-# ── Uninstall ────────────────────────────────────────────────────────────────
+# ── Argument Parsing ──────────────────────────────────────────────────────────
 $IsUninstall = $false
-$IsPurge = $false
+$IsPurge     = $false
+$IsUpdate    = $false
 foreach ($a in $args) {
     if ($a -in @("--selfuninstall", "-selfuninstall", "--uninstall", "-u")) { $IsUninstall = $true }
     if ($a -in @("--purge", "-purge")) { $IsPurge = $true }
+    if ($a -in @("--update", "-update", "-U")) { $IsUpdate = $true }
 }
 
 if ($IsUninstall) {
@@ -50,6 +54,17 @@ if ($IsUninstall) {
     Write-Host "Tasklynx uninstalled. Restart your terminal to apply PATH changes." -ForegroundColor Green
     Write-Host ""
     exit 0
+}
+
+# ── Update: remove existing binaries before re-installing ─────────────────────
+if ($IsUpdate) {
+    Write-Host ""
+    Write-Host "Tasklynx Updater" -ForegroundColor Cyan
+    Write-Host ""
+    if (Test-Path $BinaryPath) { Remove-Item $BinaryPath -Force; Write-Host "  Removed old tasklynx.exe" -ForegroundColor Yellow }
+    if (Test-Path $TxPath)     { Remove-Item $TxPath -Force;     Write-Host "  Removed old tx.exe" -ForegroundColor Yellow }
+    Write-Host "  Re-installing latest version..." -ForegroundColor Cyan
+    Write-Host ""
 }
 
 # ── Install ──────────────────────────────────────────────────────────────────
@@ -157,4 +172,7 @@ Write-Host "  Version          : $version" -ForegroundColor Cyan
 Write-Host ""
 Write-Host "  Run 'tasklynx --help' or 'tx --help' to get started" -ForegroundColor Yellow
 Write-Host "  Restart your terminal if commands are not found." -ForegroundColor Yellow
+Write-Host ""
+Write-Host "  To update:    irm .../installer.ps1 | iex -- --update" -ForegroundColor Gray
+Write-Host "  To uninstall: irm .../installer.ps1 | iex -- --selfuninstall" -ForegroundColor Gray
 Write-Host ""

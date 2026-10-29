@@ -1,5 +1,13 @@
 #!/bin/sh
-# Tasklynx Installer for Linux/macOS/Android (Termux)
+# Tasklynx Installer for Linux / macOS / Android (Termux)
+# Supports: Linux x86_64, Linux arm64, macOS Intel, macOS Apple Silicon,
+#           Android Termux (arm64-v8a, armeabi-v7a, x86_64)
+# Usage:
+#   curl -fsSL https://raw.githubusercontent.com/peekstore/tasklynx/main/installer.sh | sh
+#   TASKLYNX_VERSION=v0.0.1-beta-4 ... | sh   # pin a version
+#   sh installer.sh --update                   # re-download/update
+#   sh installer.sh --selfuninstall            # remove binaries
+#   sh installer.sh --selfuninstall --purge    # remove everything incl. config
 set -e
 
 PROJECT_NAME="tasklynx"
@@ -8,20 +16,23 @@ RELEASE_URL="https://github.com/peekstore/${PROJECT_NAME}/releases/download"
 
 IS_UNINSTALL=false
 IS_PURGE=false
+IS_UPDATE=false
 for arg in "$@"; do
     case "$arg" in
         --selfuninstall|--uninstall|-u) IS_UNINSTALL=true ;;
         --purge) IS_PURGE=true ;;
+        --update|-U) IS_UPDATE=true ;;
     esac
 done
 
+if [ -n "${XDG_CONFIG_HOME:-}" ]; then
+    BASE_DIR="$XDG_CONFIG_HOME/peekstore/${PROJECT_NAME}"
+else
+    BASE_DIR="$HOME/.config/peekstore/${PROJECT_NAME}"
+fi
+BIN_DIR="$BASE_DIR/bin"
+
 if [ "$IS_UNINSTALL" = true ]; then
-    if [ -n "${XDG_CONFIG_HOME:-}" ]; then
-        BASE_DIR="$XDG_CONFIG_HOME/peekstore/${PROJECT_NAME}"
-    else
-        BASE_DIR="$HOME/.config/peekstore/${PROJECT_NAME}"
-    fi
-    BIN_DIR="$BASE_DIR/bin"
     echo ""
     echo "Tasklynx Uninstaller"
     echo ""
@@ -56,7 +67,16 @@ case "$VERSION" in
     *) VERSION="v${VERSION}" ;;
 esac
 
-echo ">>> Installing ${PROJECT_NAME} ${VERSION}..."
+# --update: force re-download even if binary already exists
+if [ "$IS_UPDATE" = true ]; then
+    echo ">>> Updating ${PROJECT_NAME} to ${VERSION}..."
+    if [ -f "${BIN_DIR}/${PROJECT_NAME}" ]; then
+        rm -f "${BIN_DIR}/${PROJECT_NAME}" "${BIN_DIR}/tx" 2>/dev/null || true
+        echo "  Removed old binaries."
+    fi
+else
+    echo ">>> Installing ${PROJECT_NAME} ${VERSION}..."
+fi
 echo ""
 
 OS_NAME="$(uname -s)"
@@ -118,26 +138,30 @@ if [ "${DRY_RUN:-}" = "1" ]; then
     exit 0
 fi
 
-if [ -n "${XDG_CONFIG_HOME:-}" ]; then
-    BIN_DIR="$XDG_CONFIG_HOME/peekstore/${PROJECT_NAME}/bin"
-else
-    BIN_DIR="$HOME/.config/peekstore/${PROJECT_NAME}/bin"
-fi
 mkdir -p "$BIN_DIR"
 
-echo "Downloading ${DOWNLOAD_URL}"
+echo "  Platform : ${OS}-${ARCH:-${ABI:-unknown}}"
+echo "  Version  : ${VERSION}"
+echo "  Binary   : ${DOWNLOAD_NAME}"
+echo "  URL      : ${DOWNLOAD_URL}"
+echo ""
+echo "  Downloading..."
 if command -v curl >/dev/null 2>&1; then
-    curl -fsSL -o "${BIN_DIR}/${PROJECT_NAME}" "$DOWNLOAD_URL" || {
+    curl -fsSL --progress-bar -o "${BIN_DIR}/${PROJECT_NAME}" "$DOWNLOAD_URL" || {
         echo "Error: Failed to download ${PROJECT_NAME}"
+        echo "  Check that version ${VERSION} is published at:"
+        echo "  https://github.com/peekstore/${PROJECT_NAME}/releases"
         exit 1
     }
 elif command -v wget >/dev/null 2>&1; then
+    wget --show-progress -qO "${BIN_DIR}/${PROJECT_NAME}" "$DOWNLOAD_URL" 2>&1 || \
     wget -O "${BIN_DIR}/${PROJECT_NAME}" "$DOWNLOAD_URL" || {
         echo "Error: Failed to download ${PROJECT_NAME}"
         exit 1
     }
 else
-    echo "Error: curl or wget required"
+    echo "Error: curl or wget is required to download Tasklynx."
+    echo "  Install curl:  sudo apt install curl  / brew install curl"
     exit 1
 fi
 
@@ -150,6 +174,16 @@ fi
 # Verify it's a binary, not HTML
 if head -c 15 "${BIN_DIR}/${PROJECT_NAME}" | grep -q "<"; then
     echo "Error: Downloaded HTML instead of binary (wrong URL/version)"
+    rm -f "${BIN_DIR}/${PROJECT_NAME}"
+    echo "  Verify the release exists: https://github.com/peekstore/${PROJECT_NAME}/releases"
+    exit 1
+fi
+
+# Sanity-check: must be at least 100 KB
+SIZE_BYTES=$(wc -c < "${BIN_DIR}/${PROJECT_NAME}" 2>/dev/null || echo 0)
+if [ "$SIZE_BYTES" -lt 102400 ]; then
+    echo "Error: Downloaded file is too small (${SIZE_BYTES} bytes) — likely a 404 page."
+    rm -f "${BIN_DIR}/${PROJECT_NAME}"
     exit 1
 fi
 
@@ -185,3 +219,6 @@ export PATH="$PATH:$BIN_DIR"
 echo ""
 echo "OK   ${PROJECT_NAME} ${VERSION} installed successfully!"
 echo "Run '${PROJECT_NAME} --help' or 'tx --help' to get started"
+echo ""
+echo "  To update:    sh installer.sh --update"
+echo "  To uninstall: sh installer.sh --selfuninstall"
