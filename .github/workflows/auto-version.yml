@@ -8,12 +8,13 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Target release version (leave blank to read from .version)'
+        description: 'Target release version (leave blank to read dynamically from .version)'
         required: false
         default: ''
 
 permissions:
   contents: write
+  actions: write
 
 jobs:
   sync-and-tag:
@@ -43,7 +44,7 @@ jobs:
           TAG="v${VERSION}"
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
           echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
-          echo "Target version: ${VERSION} (${TAG})"
+          echo "Dynamic target version: ${VERSION} (${TAG})"
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
@@ -61,20 +62,35 @@ jobs:
             echo "No manifest changes to commit."
           else
             TAG="${{ steps.resolve.outputs.tag }}"
-            git commit -m "chore(release): bump version to ${TAG} [skip ci]"
+            VERSION="${{ steps.resolve.outputs.version }}"
+            git commit -m "chore(release): bump version to ${TAG} [skip ci]" \
+                       -m "Synchronize version ${VERSION} across all package managers and manifests"
             git push origin HEAD:main
             echo "Committed and pushed version changes."
           fi
 
       - name: Create and push annotated tag
+        id: tag
         run: |
           TAG="${{ steps.resolve.outputs.tag }}"
+          VERSION="${{ steps.resolve.outputs.version }}"
           git fetch --tags
           if git rev-parse "$TAG" >/dev/null 2>&1; then
             echo "Tag $TAG already exists on remote. Skipping creation."
+            echo "new_tag=false" >> "$GITHUB_OUTPUT"
           else
             echo "Creating annotated tag: $TAG"
-            git tag -a "$TAG" -m "Tasklynx ${TAG}"
+            git tag -a "$TAG" -m "Tasklynx ${TAG} (${VERSION})"
             git push origin "$TAG"
             echo "Successfully created and pushed tag $TAG!"
+            echo "new_tag=true" >> "$GITHUB_OUTPUT"
           fi
+
+      - name: Trigger release workflow
+        if: steps.tag.outputs.new_tag == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${{ steps.resolve.outputs.tag }}"
+          echo "Triggering release workflow for $TAG..."
+          gh workflow run release.yml --ref main || echo "Workflow dispatch queued or completed"

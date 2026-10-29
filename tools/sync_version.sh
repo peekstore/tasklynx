@@ -119,7 +119,14 @@ if [ -f "${ROOT_DIR}/packaging/pacman/PKGBUILD" ]; then
   if command -v makepkg >/dev/null 2>&1; then
     (cd "${ROOT_DIR}/packaging/pacman" && makepkg --printsrcinfo > .SRCINFO 2>/dev/null || true)
   fi
-  echo "✓ Arch Linux PKGBUILD & .SRCINFO"
+  echo "✓ Arch Linux PKGBUILD"
+fi
+if [ -f "${ROOT_DIR}/packaging/pacman/.SRCINFO" ]; then
+  sed -i -E 's/pkgver = .*/pkgver = '"${ARCH_PKGVER}"'/' "${ROOT_DIR}/packaging/pacman/.SRCINFO"
+  sed -i -E 's/tasklynx-x86_64-v[0-9a-zA-Z.-]+/tasklynx-x86_64-'"${TAG}"'/' "${ROOT_DIR}/packaging/pacman/.SRCINFO"
+  sed -i -E 's/tasklynx-aarch64-v[0-9a-zA-Z.-]+/tasklynx-aarch64-'"${TAG}"'/' "${ROOT_DIR}/packaging/pacman/.SRCINFO"
+  sed -i -E 's/download\/v[0-9a-zA-Z.-]+\//download\/'"${TAG}"'\//g' "${ROOT_DIR}/packaging/pacman/.SRCINFO"
+  echo "✓ Arch Linux .SRCINFO"
 fi
 
 # 11. Scoop
