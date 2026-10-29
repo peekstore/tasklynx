@@ -1,7 +1,9 @@
 <div align="center">
-  <a href="https://github.com/peekstore/tasklynx">
-    <img src="logo/logo.svg" alt="Tasklynx logo" width="140" height="140">
-  </a>
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="tasklynx-logos/banner-on-dark-mode-1280x640.png">
+    <source media="(prefers-color-scheme: light)" srcset="tasklynx-logos/banner-on-light-mode-1280x640.png">
+    <img alt="Tasklynx Banner" src="tasklynx-logos/banner-on-dark-mode-1280x640.png" width="100%">
+  </picture>
 
   <h1>Tasklynx</h1>
 

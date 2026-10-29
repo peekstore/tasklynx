@@ -1,6 +1,7 @@
-<p align="center">
-  <img src="logo.svg" alt="Tasklynx logo" width="120" height="120">
-</p>
+<div class="tasklynx-banner-container">
+  <img class="tasklynx-banner banner-dark" src="assets/banner-on-dark-mode-1280x640.png" alt="Tasklynx Banner">
+  <img class="tasklynx-banner banner-light" src="assets/banner-on-light-mode-1280x640.png" alt="Tasklynx Banner">
+</div>
 
 # Tasklynx Documentation
 

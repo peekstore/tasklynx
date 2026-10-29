@@ -12,7 +12,7 @@ $packageArgs = @{
   url64bit      = $url64
   url           = $url64
   softwareName  = 'tasklynx*'
-  checksum64    = '7f33919e1a2d1d4db74c7604bebf229da9f1a23bfeb82488d0113c4c920fb6c7'
+  checksum64    = '61e8ecaa553e75baba1282d953acd174b3667c5bbe0d2b5558d6bb34214e4794'
   checksumType64= 'sha256'
 }
 

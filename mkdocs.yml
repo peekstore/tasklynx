@@ -6,6 +6,13 @@ theme:
   name: void
   logo: logo.svg
   favicon: logo.svg
+extra_css:
+  - stylesheets/extra.css
+extra:
+  void_logo_dark: assets/icon-on-dark-mode.svg
+  void_logo_light: assets/icon-on-light-mode.svg
+  void_favicon_dark: assets/favicon-on-dark-mode.svg
+  void_favicon_light: assets/favicon-on-light-mode.svg
 plugins:
   - search
   - void

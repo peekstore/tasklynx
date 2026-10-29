@@ -1,0 +1,58 @@
+/* Tasklynx - Custom styles for Void MkDocs theme */
+
+.tasklynx-banner-container {
+  width: 100%;
+  margin: 1.5rem 0 2rem 0;
+  text-align: center;
+}
+
+.tasklynx-banner {
+  width: 100%;
+  max-width: 100%;
+  height: auto;
+  border-radius: var(--void-radius-md, 8px);
+  display: block;
+}
+
+/* By default, dark banner is shown */
+.banner-light {
+  display: none !important;
+}
+.banner-dark {
+  display: block !important;
+}
+
+/* Void theme light mode (data-md-color-scheme="default") */
+[data-md-color-scheme="default"] .banner-dark {
+  display: none !important;
+}
+[data-md-color-scheme="default"] .banner-light {
+  display: block !important;
+}
+
+/* Void theme dark mode (data-md-color-scheme="slate") */
+[data-md-color-scheme="slate"] .banner-light {
+  display: none !important;
+}
+[data-md-color-scheme="slate"] .banner-dark {
+  display: block !important;
+}
+
+/* Browser OS-level light/dark preference fallbacks */
+@media (prefers-color-scheme: light) {
+  :root:not([data-md-color-scheme="slate"]) .banner-dark {
+    display: none !important;
+  }
+  :root:not([data-md-color-scheme="slate"]) .banner-light {
+    display: block !important;
+  }
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-md-color-scheme="default"]) .banner-light {
+    display: none !important;
+  }
+  :root:not([data-md-color-scheme="default"]) .banner-dark {
+    display: block !important;
+  }
+}

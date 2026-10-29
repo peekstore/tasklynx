@@ -30,6 +30,19 @@ Description: Developer-first local task manager with Git-style workflows
  terminal-native Ratatui dashboard, and embedded web interface.
 EOF
 
-dpkg-deb --build --root-owner-group "$PKG_DIR" "${OUTPUT_DIR}/tasklynx_${CLEAN_VERSION}_${ARCH}.deb"
-echo "Built ${OUTPUT_DIR}/tasklynx_${CLEAN_VERSION}_${ARCH}.deb"
+OUTPUT_DEB="${OUTPUT_DIR}/tasklynx_${CLEAN_VERSION}_${ARCH}.deb"
+
+if command -v dpkg-deb >/dev/null 2>&1; then
+    dpkg-deb --build --root-owner-group "$PKG_DIR" "$OUTPUT_DEB"
+else
+    # Fallback to standard ar + tar for non-Debian environments
+    BUILD_STAGE=$(mktemp -d)
+    echo "2.0" > "${BUILD_STAGE}/debian-binary"
+    tar --owner=0 --group=0 -czf "${BUILD_STAGE}/control.tar.gz" -C "${PKG_DIR}/DEBIAN" .
+    tar --owner=0 --group=0 -czf "${BUILD_STAGE}/data.tar.gz" -C "${PKG_DIR}" --exclude="./DEBIAN" usr
+    ar rcs "$OUTPUT_DEB" "${BUILD_STAGE}/debian-binary" "${BUILD_STAGE}/control.tar.gz" "${BUILD_STAGE}/data.tar.gz"
+    rm -rf "$BUILD_STAGE"
+fi
+
+echo "Built ${OUTPUT_DEB}"
 rm -rf "$PKG_DIR"
