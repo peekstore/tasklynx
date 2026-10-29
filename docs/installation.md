@@ -89,11 +89,20 @@ mise use -g tasklynx@latest
 
 ### Pacman (Arch Linux)
 
-Install via the included PKGBUILD:
+Install via the included PKGBUILD. You must first clone the repository, then run `makepkg` from inside the `packaging/pacman/` directory:
 
 ```bash
-cd packaging/pacman
+git clone https://github.com/peekstore/tasklynx.git
+cd tasklynx/packaging/pacman
 makepkg -si
+```
+
+> **Important:** The `cd packaging/pacman` path is relative to the project root. Running it from your home directory (`~`) will fail with "directory not found". Always `git clone` first.
+
+Or with `yay` (AUR helper):
+
+```bash
+yay -S tasklynx-bin
 ```
 
 ### APT (Debian, Ubuntu, Pop!_OS)

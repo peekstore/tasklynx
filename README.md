@@ -70,7 +70,7 @@ More images and descriptions in the [screenshots gallery](https://peekstore.gith
 | --- | --- | --- |
 | **Homebrew** | macOS / Linux | `brew install peekstore/tasklynx/tasklynx` |
 | **mise** | Linux / macOS | `mise use -g ubi:peekstore/tasklynx` |
-| **Pacman** | Arch Linux | `cd packaging/pacman && makepkg -si` |
+| **Pacman** | Arch Linux | See [Arch install](#arch-linux--pacman) below |
 | **APT** | Debian / Ubuntu | `sudo apt install ./tasklynx_0.0.1-beta-4_amd64.deb` |
 | **npm** | Cross-platform | `npm install -g tasklynx` / `npx tasklynx` |
 | **pipx** | Cross-platform | `pipx install git+https://github.com/peekstore/tasklynx.git#subdirectory=packaging/pipx` |
@@ -121,6 +121,22 @@ Download standalone binaries or archives from [Releases](https://github.com/peek
 
 ```bash
 sha256sum -c SHA256SUMS.txt
+```
+
+### Arch Linux / Pacman
+
+> **Note:** Run this from the **project root** after cloning — `makepkg` must be run inside `packaging/pacman/`.
+
+```bash
+git clone https://github.com/peekstore/tasklynx.git
+cd tasklynx/packaging/pacman
+makepkg -si
+```
+
+Or without cloning, using the AUR helper `yay`:
+
+```bash
+yay -S tasklynx-bin
 ```
 
 ### From source
