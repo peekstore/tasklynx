@@ -96,8 +96,8 @@ Releases are automated by GitHub Actions.
 3. Commit, then create and push an annotated tag:
 
 ```bash
-git tag -a v0.0.1-beta-4 -m "Tasklynx v0.0.1-beta-4"
-git push origin v0.0.1-beta-4
+git tag -a v0.0.1-beta-1 -m "Tasklynx v0.0.1-beta-1"
+git push origin v0.0.1-beta-1
 ```
 
 The release workflow builds every target, publishes the assets, and generates checksums. Installer tests run afterward against the published release.

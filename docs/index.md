@@ -7,7 +7,7 @@
 
 Tasklynx is a local-first task manager for developers. It combines a scriptable CLI, an interactive terminal Kanban board, and a small web dashboard on top of a single JSON store — with Git-style branches for parallel work.
 
-- **Version:** 0.0.1-beta-4
+- **Version:** 0.0.1-beta-1
 - **AI Reader:** [`llms.txt`](https://peekstore.github.io/tasklynx/llms.txt) · [`llms-full.txt`](https://peekstore.github.io/tasklynx/llms-full.txt)
 - **License:** [MIT](https://github.com/peekstore/tasklynx/blob/main/LICENSE)
 - **Repository:** [github.com/peekstore/tasklynx](https://github.com/peekstore/tasklynx)

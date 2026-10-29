@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "tasklynx"
-version = "0.0.1b4"
+version = "0.0.1b1"
 description = "Developer-first local task manager with Git-style workflows and terminal dashboard"
 readme = "README.md"
 authors = [{ name = "RK Riad Khan", email = "rkriad585@gmail.com" }]

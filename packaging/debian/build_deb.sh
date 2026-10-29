@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-VERSION="${1:-0.0.1-beta-4}"
+VERSION="${1:-0.0.1-beta-1}"
 ARCH="${2:-amd64}"
 BINARY="${3:-target/release/tasklynx}"
 OUTPUT_DIR="${4:-.}"

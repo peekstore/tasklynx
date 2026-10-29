@@ -1,7 +1,7 @@
 $ErrorActionPreference = 'Stop'
 
 $toolsDir     = "$(Split-Path -parent $MyInvocation.MyCommand.Definition)"
-$version      = '0.0.1-beta-4'
+$version      = '0.0.1-beta-1'
 $url64        = "https://github.com/peekstore/tasklynx/releases/download/v${version}/tasklynx-windows-amd64.exe"
 $urlArm64     = "https://github.com/peekstore/tasklynx/releases/download/v${version}/tasklynx-windows-arm64.exe"
 

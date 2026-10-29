@@ -77,7 +77,7 @@ if [ -z "$VERSION" ] && command -v curl >/dev/null 2>&1; then
     VERSION=$(curl -fsSL "$VERSION_URL" 2>/dev/null | tr -d ' \n\r' || true)
 fi
 if [ -z "$VERSION" ]; then
-    VERSION="v0.0.1-beta-4"
+    VERSION="v0.0.1-beta-1"
 fi
 case "$VERSION" in
     v*) ;;

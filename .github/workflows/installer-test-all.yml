@@ -269,6 +269,7 @@ jobs:
         run: |
           cargo install --path . --locked
           tasklynx --version
+          ln -sf "$(which tasklynx)" "$(dirname "$(which tasklynx)")/tx"
           tx --version
 
   # ──────────────────────────────────────────────────────────────

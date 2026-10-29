@@ -67,7 +67,7 @@ More images and descriptions in the [screenshots gallery](https://peekstore.gith
 | **npm** | Cross-platform (Node.js) | `npm install -g tasklynx` / `npx tasklynx` |
 | **pipx** | Cross-platform (Python) | `pipx install git+https://github.com/peekstore/tasklynx.git#subdirectory=packaging/pipx` |
 | **Chocolatey** | Windows | `choco install tasklynx` |
-| **APT** | Debian / Ubuntu | `curl -LO https://github.com/peekstore/tasklynx/releases/download/v0.0.1-beta-4/tasklynx_0.0.1-beta-4_amd64.deb && sudo apt install ./tasklynx_0.0.1-beta-4_amd64.deb` |
+| **APT** | Debian / Ubuntu | `curl -LO https://github.com/peekstore/tasklynx/releases/download/v0.0.1-beta-4/tasklynx_0.0.1-beta-1_amd64.deb && sudo apt install ./tasklynx_0.0.1-beta-1_amd64.deb` |
 | **Cargo** | Cross-platform (Rust) | `cargo install --git https://github.com/peekstore/tasklynx.git --locked` |
 
 ### One-line installer
@@ -83,7 +83,7 @@ The installer places `tasklynx` and the `tx` alias in `${XDG_CONFIG_HOME:-$HOME/
 Pin a specific version:
 
 ```bash
-TASKLYNX_VERSION=v0.0.1-beta-4 \
+TASKLYNX_VERSION=v0.0.1-beta-1 \
   curl -fsSL https://raw.githubusercontent.com/peekstore/tasklynx/main/installer.sh | sh
 ```
 

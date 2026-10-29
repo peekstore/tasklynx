@@ -7,7 +7,7 @@ authors:
     website: "https://rkriad585.github.io"
     affiliation: "peekstore"
 title: "Tasklynx: Developer-first local task manager with Git-style workflows"
-version: 0.0.1-beta-4
+version: 0.0.1-beta-1
 date-released: 2026-10-28
 url: "https://github.com/peekstore/tasklynx"
 license: "MIT"

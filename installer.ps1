@@ -87,7 +87,7 @@ if (-not $version) {
             Where-Object { -not $_.draft } | Select-Object -First 1).tag_name
     } catch {}
 }
-if (-not $version) { $version = "v0.0.1-beta-4" }
+if (-not $version) { $version = "v0.0.1-beta-1" }
 if ($version -notmatch '^v') { $version = "v$version" }
 Write-Host "$version" -ForegroundColor Green
 

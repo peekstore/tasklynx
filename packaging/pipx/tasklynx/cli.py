@@ -6,7 +6,7 @@ import subprocess
 import urllib.request
 import urllib.error
 
-VERSION = "0.0.1-beta-4"
+VERSION = "0.0.1-beta-1"
 GITHUB_REPO = "peekstore/tasklynx"
 MIN_BINARY_SIZE = 100 * 1024  # 100 KB sanity check
 
