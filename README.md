@@ -68,7 +68,7 @@ More images and descriptions in the [screenshots gallery](https://peekstore.gith
 
 | Manager | Platform | Command |
 | --- | --- | --- |
-| **APT** | Debian / Ubuntu | `curl -LO https://github.com/peekstore/tasklynx/releases/download/v0.0.1-beta-4/tasklynx_0.0.1-beta-1_amd64.deb && sudo apt install ./tasklynx_0.0.1-beta-1_amd64.deb` |
+| **APT** | Debian / Ubuntu | `curl -LO https://github.com/peekstore/tasklynx/releases/download/v0.0.1-beta-1/tasklynx_0.0.1-beta-1_amd64.deb && sudo apt install ./tasklynx_0.0.1-beta-1_amd64.deb` |
 | **npm** | Cross-platform | `npm install -g tasklynx` / `npx tasklynx` |
 | **pipx** | Cross-platform | `pipx install git+https://github.com/peekstore/tasklynx.git#subdirectory=packaging/pipx` |
 | **Chocolatey** | Windows | `choco install tasklynx` |

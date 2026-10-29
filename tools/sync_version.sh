@@ -104,6 +104,7 @@ fi
 for MD_FILE in "${ROOT_DIR}/README.md" "${ROOT_DIR}/docs/index.md" "${ROOT_DIR}/docs/installation.md" "${ROOT_DIR}/docs/development.md" "${ROOT_DIR}/packaging/npm/README.md" "${ROOT_DIR}/packaging/pipx/README.md"; do
   if [ -f "$MD_FILE" ]; then
     sed -i -E "s/tasklynx_[0-9a-zA-Z.-]+_amd64\.deb/tasklynx_${FULL_VERSION}_amd64.deb/g" "$MD_FILE"
+    sed -i -E "s|download/v[0-9a-zA-Z.-]+/tasklynx_|download/${TAG}/tasklynx_|g" "$MD_FILE"
     sed -i -E "s/TASKLYNX_VERSION=v[0-9a-zA-Z.-]+/TASKLYNX_VERSION=${TAG}/g" "$MD_FILE"
     sed -i -E "s/\\\$env:TASKLYNX_VERSION = \"v[0-9a-zA-Z.-]+\"/\$env:TASKLYNX_VERSION = \"${TAG}\"/g" "$MD_FILE"
   fi

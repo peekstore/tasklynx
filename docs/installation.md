@@ -69,7 +69,7 @@ On Windows, run `.\installer.ps1 -DryRun` from a checkout.
 Download and install the `.deb` release package:
 
 ```bash
-curl -LO https://github.com/peekstore/tasklynx/releases/download/v0.0.1-beta-4/tasklynx_0.0.1-beta-1_amd64.deb
+curl -LO https://github.com/peekstore/tasklynx/releases/download/v0.0.1-beta-1/tasklynx_0.0.1-beta-1_amd64.deb
 sudo apt install ./tasklynx_0.0.1-beta-1_amd64.deb
 # or:
 sudo dpkg -i tasklynx_0.0.1-beta-1_amd64.deb
