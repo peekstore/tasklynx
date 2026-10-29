@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # tools/update_hashes.sh
-# Updates package manager manifests (Scoop, Winget, Chocolatey, Homebrew)
+# Updates package manager manifests (Chocolatey)
 # with the latest SHA256 checksums from a build directory, SHA256SUMS.txt, or release URL.
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -74,42 +74,6 @@ CHOCO_SCRIPT="${ROOT_DIR}/packaging/chocolatey/tools/chocolateyinstall.ps1"
 if [ -f "$CHOCO_SCRIPT" ] && [ -n "$WIN_AMD64_HASH" ]; then
   sed -i -E "s/checksum64[[:space:]]*=[[:space:]]*'[0-9a-fA-F]{64}'/checksum64    = '${WIN_AMD64_HASH}'/" "$CHOCO_SCRIPT"
   echo "✓ Updated Chocolatey install script"
-fi
-
-# 2. Update Scoop manifests
-for SCOOP_PATH in "${ROOT_DIR}/packaging/scoop/tasklynx.json" "${ROOT_DIR}/bucket/tasklynx.json"; do
-  if [ -f "$SCOOP_PATH" ]; then
-    if [ -n "$WIN_AMD64_HASH" ]; then
-      sed -i -E "/\"64bit\": \{/,/}/ s/\"hash\": \"[0-9a-fA-F]{64}\"/\"hash\": \"${WIN_AMD64_HASH}\"/" "$SCOOP_PATH"
-    fi
-    if [ -n "$WIN_ARM64_HASH" ]; then
-      sed -i -E "/\"arm64\": \{/,/}/ s/\"hash\": \"[0-9a-fA-F]{64}\"/\"hash\": \"${WIN_ARM64_HASH}\"/" "$SCOOP_PATH"
-    fi
-    echo "✓ Updated Scoop manifest: ${SCOOP_PATH}"
-  fi
-done
-
-# 3. Update Winget manifests
-WINGET_INSTALLER="${ROOT_DIR}/packaging/winget/manifests/p/peekstore/tasklynx/${VERSION}/peekstore.tasklynx.installer.yaml"
-if [ -f "$WINGET_INSTALLER" ]; then
-  if [ -n "$WIN_AMD64_HASH" ]; then
-    sed -i -E "/Architecture: x64/,/Commands:/ s/InstallerSha256: [0-9a-fA-F]{64}/InstallerSha256: ${WIN_AMD64_HASH}/" "$WINGET_INSTALLER"
-  fi
-  if [ -n "$WIN_ARM64_HASH" ]; then
-    sed -i -E "/Architecture: arm64/,/Commands:/ s/InstallerSha256: [0-9a-fA-F]{64}/InstallerSha256: ${WIN_ARM64_HASH}/" "$WINGET_INSTALLER"
-  fi
-  echo "✓ Updated Winget multi-manifest: ${WINGET_INSTALLER}"
-fi
-
-WINGET_SINGLE="${ROOT_DIR}/packaging/winget/peekstore.tasklynx.yaml"
-if [ -f "$WINGET_SINGLE" ]; then
-  if [ -n "$WIN_AMD64_HASH" ]; then
-    sed -i -E "/Architecture: x64/,/Commands:/ s/InstallerSha256: [0-9a-fA-F]{64}/InstallerSha256: ${WIN_AMD64_HASH}/" "$WINGET_SINGLE"
-  fi
-  if [ -n "$WIN_ARM64_HASH" ]; then
-    sed -i -E "/Architecture: arm64/,/Commands:/ s/InstallerSha256: [0-9a-fA-F]{64}/InstallerSha256: ${WIN_ARM64_HASH}/" "$WINGET_SINGLE"
-  fi
-  echo "✓ Updated Winget singleton: ${WINGET_SINGLE}"
 fi
 
 if [ "$CLEANUP_TEMP" = true ] && [ -f "$SUMS_FILE" ]; then

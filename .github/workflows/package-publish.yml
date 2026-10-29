@@ -27,16 +27,6 @@ jobs:
           pipx install ./packaging/pipx --force
           tasklynx --version || true
 
-  test-mise:
-    name: "Test mise plugin"
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: jdx/mise-action@v2
-      - name: Test mise plugin scripts
-        run: |
-          bash packaging/mise/bin/list-all | head -n 5 || true
-
   build-deb:
     name: "Build Debian/Ubuntu (.deb) package"
     runs-on: ubuntu-latest
@@ -59,22 +49,6 @@ jobs:
         with:
           name: tasklynx-deb
           path: "*.deb"
-
-  test-arch-pacman:
-    name: "Validate Arch PKGBUILD"
-    runs-on: ubuntu-latest
-    container:
-      image: archlinux:latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Setup pacman & makepkg
-        run: |
-          pacman -Syu --noconfirm base-devel git
-          useradd -m builder
-          chown -R builder:builder .
-      - name: Validate PKGBUILD syntax
-        run: |
-          su builder -c "cd packaging/pacman && makepkg --printsrcinfo > .SRCINFO.check"
 
   publish-chocolatey:
     name: "Publish Chocolatey package"

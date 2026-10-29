@@ -24,15 +24,11 @@ TAG="v${FULL_VERSION}"
 # PEP 440 version (e.g. 0.0.1-beta-3 -> 0.0.1b3)
 PEP440_VERSION=$(echo "$FULL_VERSION" | sed -E 's/[-.]beta[-.]?/b/' | sed -E 's/[-.]alpha[-.]?/a/' | sed -E 's/[-.]rc[-.]?/rc/')
 
-# Arch Linux pkgver (e.g. 0.0.1-beta-3 -> 0.0.1.beta3)
-ARCH_PKGVER=$(echo "$FULL_VERSION" | sed -E 's/[-.]beta[-.]?/.beta/' | tr '-' '.')
-
 echo "Synchronizing version across project:"
 echo "  Raw version    : ${RAW_VERSION}"
 echo "  Clean version  : ${FULL_VERSION}"
 echo "  Git tag        : ${TAG}"
 echo "  PEP440 (pipx)  : ${PEP440_VERSION}"
-echo "  Pacman (arch)  : ${ARCH_PKGVER}"
 
 # 1. Update .version
 echo -n "${FULL_VERSION}" > "${ROOT_DIR}/.version"
@@ -80,15 +76,7 @@ if [ -f "${ROOT_DIR}/packaging/debian/build_deb.sh" ]; then
   echo "✓ Debian build_deb.sh"
 fi
 
-# 7. Homebrew
-for BREW_FILE in "${ROOT_DIR}/Formula/tasklynx.rb" "${ROOT_DIR}/packaging/homebrew/tasklynx.rb"; do
-  if [ -f "$BREW_FILE" ]; then
-    sed -i -E 's/version "[^"]+"/version "'"${FULL_VERSION}"'"/' "$BREW_FILE"
-    echo "✓ Homebrew formula: $(basename "$BREW_FILE")"
-  fi
-done
-
-# 8. NPM
+# 7. NPM
 if [ -f "${ROOT_DIR}/packaging/npm/package.json" ]; then
   sed -i -E 's/"version": "[^"]+"/"version": "'"${FULL_VERSION}"'"/' "${ROOT_DIR}/packaging/npm/package.json"
   echo "✓ NPM package.json"
@@ -98,7 +86,7 @@ if [ -f "${ROOT_DIR}/packaging/npm/bin/tasklynx.js" ]; then
   echo "✓ NPM launcher binary"
 fi
 
-# 9. Pipx
+# 8. Pipx
 if [ -f "${ROOT_DIR}/packaging/pipx/pyproject.toml" ]; then
   sed -i -E 's/^version = "[^"]+"/version = "'"${PEP440_VERSION}"'"/' "${ROOT_DIR}/packaging/pipx/pyproject.toml"
   echo "✓ Pipx pyproject.toml"
@@ -112,58 +100,7 @@ if [ -f "${ROOT_DIR}/packaging/pipx/tasklynx/cli.py" ]; then
   echo "✓ Pipx cli.py"
 fi
 
-# 10. Arch Linux / Pacman
-if [ -f "${ROOT_DIR}/packaging/pacman/PKGBUILD" ]; then
-  sed -i -E 's/^pkgver=.*/pkgver='"${ARCH_PKGVER}"'/' "${ROOT_DIR}/packaging/pacman/PKGBUILD"
-  sed -i -E 's/^_tag=.*/_tag='"${TAG}"'/' "${ROOT_DIR}/packaging/pacman/PKGBUILD"
-  if command -v makepkg >/dev/null 2>&1; then
-    (cd "${ROOT_DIR}/packaging/pacman" && makepkg --printsrcinfo > .SRCINFO 2>/dev/null || true)
-  fi
-  echo "✓ Arch Linux PKGBUILD"
-fi
-if [ -f "${ROOT_DIR}/packaging/pacman/.SRCINFO" ]; then
-  sed -i -E 's/pkgver = .*/pkgver = '"${ARCH_PKGVER}"'/' "${ROOT_DIR}/packaging/pacman/.SRCINFO"
-  sed -i -E 's/tasklynx-x86_64-v[0-9a-zA-Z.-]+/tasklynx-x86_64-'"${TAG}"'/' "${ROOT_DIR}/packaging/pacman/.SRCINFO"
-  sed -i -E 's/tasklynx-aarch64-v[0-9a-zA-Z.-]+/tasklynx-aarch64-'"${TAG}"'/' "${ROOT_DIR}/packaging/pacman/.SRCINFO"
-  sed -i -E 's/download\/v[0-9a-zA-Z.-]+\//download\/'"${TAG}"'\//g' "${ROOT_DIR}/packaging/pacman/.SRCINFO"
-  echo "✓ Arch Linux .SRCINFO"
-fi
-
-# 11. Scoop
-for SCOOP_FILE in "${ROOT_DIR}/packaging/scoop/tasklynx.json" "${ROOT_DIR}/bucket/tasklynx.json"; do
-  if [ -f "$SCOOP_FILE" ]; then
-    sed -i -E 's/"version": "[^"]+"/"version": "'"${FULL_VERSION}"'"/' "$SCOOP_FILE"
-    sed -i -E '1,/"autoupdate":/ s/download\/v[0-9a-zA-Z.-]+\/tasklynx-windows/download\/'"${TAG}"'\/tasklynx-windows/g' "$SCOOP_FILE"
-    echo "✓ Scoop manifest: $(basename "$SCOOP_FILE")"
-  fi
-done
-
-# 12. Winget
-if [ -f "${ROOT_DIR}/packaging/winget/peekstore.tasklynx.yaml" ]; then
-  sed -i -E 's/^PackageVersion: .*/PackageVersion: '"${FULL_VERSION}"'/' "${ROOT_DIR}/packaging/winget/peekstore.tasklynx.yaml"
-  sed -i -E 's/download\/v[0-9a-zA-Z.-]+\/tasklynx-windows/download\/'"${TAG}"'\/tasklynx-windows/g' "${ROOT_DIR}/packaging/winget/peekstore.tasklynx.yaml"
-  echo "✓ Winget singleton manifest"
-fi
-
-WINGET_DIR="${ROOT_DIR}/packaging/winget/manifests/p/peekstore/tasklynx"
-if [ -d "$WINGET_DIR" ]; then
-  TARGET_DIR="${WINGET_DIR}/${FULL_VERSION}"
-  if [ ! -d "$TARGET_DIR" ]; then
-    LATEST_PREV=$(find "$WINGET_DIR" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -n 1)
-    if [ -n "$LATEST_PREV" ] && [ "$LATEST_PREV" != "$TARGET_DIR" ]; then
-      cp -r "$LATEST_PREV" "$TARGET_DIR"
-    else
-      mkdir -p "$TARGET_DIR"
-    fi
-  fi
-  if [ -d "$TARGET_DIR" ]; then
-    find "$TARGET_DIR" -type f -exec sed -i -E "s/PackageVersion: [0-9a-zA-Z.-]+/PackageVersion: ${FULL_VERSION}/g" {} +
-    find "$TARGET_DIR" -type f -exec sed -i -E "s/download\/v[0-9a-zA-Z.-]+\/tasklynx-windows/download\/${TAG}\/tasklynx-windows/g" {} +
-    echo "✓ Winget multi-manifest directory: ${FULL_VERSION}"
-  fi
-fi
-
-# 13. Documentation & Markdown files
+# 9. Documentation & Markdown files
 for MD_FILE in "${ROOT_DIR}/README.md" "${ROOT_DIR}/docs/index.md" "${ROOT_DIR}/docs/installation.md" "${ROOT_DIR}/docs/development.md" "${ROOT_DIR}/packaging/npm/README.md" "${ROOT_DIR}/packaging/pipx/README.md"; do
   if [ -f "$MD_FILE" ]; then
     sed -i -E "s/tasklynx_[0-9a-zA-Z.-]+_amd64\.deb/tasklynx_${FULL_VERSION}_amd64.deb/g" "$MD_FILE"

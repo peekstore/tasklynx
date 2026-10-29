@@ -64,50 +64,6 @@ On Windows, run `.\installer.ps1 -DryRun` from a checkout.
 
 ## Package managers
 
-### Homebrew (macOS and Linux)
-
-```bash
-brew install peekstore/tasklynx/tasklynx
-# or from local formula:
-brew install ./Formula/tasklynx.rb
-```
-
-### mise
-
-Install via mise using GitHub Release binaries:
-
-```bash
-mise use -g ubi:peekstore/tasklynx
-```
-
-Or register the mise/asdf plugin:
-
-```bash
-mise plugins install tasklynx https://github.com/peekstore/tasklynx
-mise use -g tasklynx@latest
-```
-
-### Pacman (Arch Linux)
-
-**Via AUR Helper (Recommended):**
-```bash
-yay -S tasklynx-bin
-# or with paru:
-paru -S tasklynx-bin
-```
-
-**Directly via PKGBUILD (No repo clone required — run from anywhere):**
-```bash
-curl -sSL https://raw.githubusercontent.com/peekstore/tasklynx/main/packaging/pacman/PKGBUILD -o PKGBUILD && makepkg -si
-```
-
-**From Git clone:**
-```bash
-git clone https://github.com/peekstore/tasklynx.git
-cd tasklynx/packaging/pacman
-makepkg -si
-```
-
 ### APT (Debian, Ubuntu, Pop!_OS)
 
 Download and install the `.deb` release package:
@@ -145,33 +101,18 @@ pipx install git+https://github.com/peekstore/tasklynx.git#subdirectory=packagin
 pipx install tasklynx
 ```
 
-### Winget (Windows Package Manager)
-
-```powershell
-winget install peekstore.tasklynx
-```
-
-### Scoop (Windows)
-
-```powershell
-scoop bucket add tasklynx https://github.com/peekstore/tasklynx
-scoop install tasklynx
-```
-
 ### Chocolatey (Windows)
 
 ```powershell
 choco install tasklynx
 ```
 
-## Nix and NixOS
+### Cargo (Rust)
+
+Install directly via Cargo from source:
 
 ```bash
-# Run without installing
-nix run github:peekstore/tasklynx
-
-# Install into your profile
-nix profile install github:peekstore/tasklynx
+cargo install --git https://github.com/peekstore/tasklynx.git --locked
 ```
 
 ## Android (Termux)

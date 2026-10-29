@@ -154,72 +154,7 @@ jobs:
           done
 
   # ──────────────────────────────────────────────────────────────
-  # 6. Nix — nix run github:peekstore/tasklynx
-  # ──────────────────────────────────────────────────────────────
-  nixos:
-    name: "nix run github:peekstore/tasklynx"
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: cachix/install-nix-action@v27
-        with:
-          nix_path: nixpkgs=channel:nixos-unstable
-      - name: Check flake
-        run: nix --extra-experimental-features "nix-command flakes" flake check --no-build
-      - name: Run — nix run github:peekstore/tasklynx
-        run: |
-          # Run from local checkout (equivalent to nix run github:peekstore/tasklynx)
-          nix --extra-experimental-features "nix-command flakes" run . -- --version
-
-  # ──────────────────────────────────────────────────────────────
-  # 7. Homebrew — brew install peekstore/tasklynx/tasklynx
-  # ──────────────────────────────────────────────────────────────
-  test-homebrew:
-    name: "brew install peekstore/tasklynx/tasklynx"
-    runs-on: macos-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Validate formula Ruby syntax
-        run: |
-          ruby -c Formula/tasklynx.rb
-          ruby -c packaging/homebrew/tasklynx.rb
-          echo "✓ Formula syntax valid"
-      - name: Add tap and install (formula must use local path for CI)
-        run: |
-          # Tap the local repo as a tap (so brew can find the formula)
-          brew tap-new peekstore/tasklynx 2>/dev/null || true
-          BREW_TAP_DIR="$(brew --repository)/Library/Taps/peekstore/homebrew-tasklynx"
-          mkdir -p "$BREW_TAP_DIR/Formula"
-          cp Formula/tasklynx.rb "$BREW_TAP_DIR/Formula/tasklynx.rb"
-          echo "Tap dir: $BREW_TAP_DIR"
-          # Try the actual install command from docs:
-          # brew install peekstore/tasklynx/tasklynx
-          brew install peekstore/tasklynx/tasklynx --verbose || {
-            echo "::warning::Brew install skipped (formula uses remote URLs not yet published)"
-          }
-
-  # ──────────────────────────────────────────────────────────────
-  # 8. mise — mise use -g ubi:peekstore/tasklynx
-  # ──────────────────────────────────────────────────────────────
-  test-mise:
-    name: "mise use -g ubi:peekstore/tasklynx"
-    runs-on: ubuntu-latest
-    needs: resolve
-    env:
-      TASKLYNX_VERSION: ${{ needs.resolve.outputs.version }}
-    steps:
-      - uses: actions/checkout@v4
-      - uses: jdx/mise-action@v2
-      - name: Install via mise ubi backend
-        run: |
-          # mise use -g ubi:peekstore/tasklynx  (ubi resolves GitHub releases)
-          mise use -g "ubi:peekstore/tasklynx@${TASKLYNX_VERSION}" || \
-          mise use -g "ubi:peekstore/tasklynx" || true
-          # Verify mise plugin list-all works
-          bash packaging/mise/bin/list-all | head -n 5
-
-  # ──────────────────────────────────────────────────────────────
-  # 9. npm — npm install -g tasklynx / npx tasklynx
+  # 6. npm — npm install -g tasklynx / npx tasklynx
   # ──────────────────────────────────────────────────────────────
   test-npm:
     name: "npm install -g tasklynx / npx tasklynx"
@@ -253,7 +188,7 @@ jobs:
             echo "::warning::npx download skipped in CI (binary fetch expected on first run)"
 
   # ──────────────────────────────────────────────────────────────
-  # 10. pipx — pipx install git+https://github.com/peekstore/tasklynx.git#subdirectory=packaging/pipx
+  # 7. pipx — pipx install git+https://github.com/peekstore/tasklynx.git#subdirectory=packaging/pipx
   # ──────────────────────────────────────────────────────────────
   test-pipx:
     name: "pipx install git+https://github.com/peekstore/tasklynx.git#subdirectory=packaging/pipx"
@@ -273,7 +208,7 @@ jobs:
           tx --version
 
   # ──────────────────────────────────────────────────────────────
-  # 11. Debian/Ubuntu — sudo apt install ./tasklynx_<version>_amd64.deb
+  # 8. Debian/Ubuntu — sudo apt install ./tasklynx_<version>_amd64.deb
   # ──────────────────────────────────────────────────────────────
   test-deb:
     name: "sudo apt install ./tasklynx_<ver>_amd64.deb"
@@ -295,7 +230,7 @@ jobs:
           tx --version
 
   # ──────────────────────────────────────────────────────────────
-  # 12. Chocolatey — choco install tasklynx (local .nupkg)
+  # 9. Chocolatey — choco install tasklynx (local .nupkg)
   # ──────────────────────────────────────────────────────────────
   test-chocolatey:
     name: "choco install tasklynx"
@@ -322,105 +257,22 @@ jobs:
           $global:LASTEXITCODE = 0
 
   # ──────────────────────────────────────────────────────────────
-  # 13. Winget — winget install peekstore.tasklynx (manifest validation)
+  # 10. Cargo — cargo install --path . --locked
   # ──────────────────────────────────────────────────────────────
-  test-winget:
-    name: "winget install peekstore.tasklynx"
-    runs-on: windows-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Validate Winget manifests
-        shell: pwsh
-        run: |
-          $files = Get-ChildItem packaging\winget -Recurse -Filter *.yaml
-          foreach ($f in $files) {
-            Write-Host "✓ $($f.FullName)"
-          }
-          Write-Host "Total winget manifests: $($files.Count)"
-          if ($files.Count -lt 4) { throw "Expected at least 4 winget manifests" }
-      - name: Test winget validate with local manifests
-        shell: pwsh
-        run: |
-          # Find the latest version manifest directory
-          $latest = Get-ChildItem "packaging\winget\manifests\p\peekstore\tasklynx" -Directory |
-            Sort-Object Name -Descending | Select-Object -First 1
-          Write-Host "Testing manifest dir: $($latest.FullName)"
-          # winget validate tests manifest schema compliance
-          winget validate "$($latest.FullName)" 2>&1
-          if ($LASTEXITCODE -ne 0) {
-            Write-Host "::warning::winget validate returned exit code $LASTEXITCODE"
-          }
-          # Simulate: winget install peekstore.tasklynx --manifest <path>
-          winget install --manifest "$($latest.FullName)" --accept-package-agreements `
-            --accept-source-agreements --silent 2>&1
-          if ($LASTEXITCODE -ne 0) {
-            Write-Host "::warning::winget install returned exit code $LASTEXITCODE (expected for unmerged winget-pkgs PR)"
-          }
-          $global:LASTEXITCODE = 0
-
-  # ──────────────────────────────────────────────────────────────
-  # 14. Scoop — scoop bucket add tasklynx ... && scoop install tasklynx
-  # ──────────────────────────────────────────────────────────────
-  test-scoop:
-    name: "scoop bucket add tasklynx && scoop install tasklynx"
-    runs-on: windows-latest
-    needs: resolve
-    env:
-      TASKLYNX_VERSION: ${{ needs.resolve.outputs.version }}
-    steps:
-      - uses: actions/checkout@v4
-      - name: Validate Scoop manifest JSON
-        shell: pwsh
-        run: |
-          $json = Get-Content packaging\scoop\tasklynx.json | ConvertFrom-Json
-          if (-not $json.version) { throw "Missing version in scoop manifest" }
-          Write-Host "✓ Scoop manifest version: $($json.version)"
-      - name: Install Scoop and add bucket (mirrors docs command)
-        shell: pwsh
-        run: |
-          # Install Scoop
-          Set-ExecutionPolicy RemoteSigned -scope CurrentUser -Force
-          irm get.scoop.sh -outfile 'install.ps1'
-          .\install.ps1 -RunAsAdmin
-          $env:PATH = "$env:USERPROFILE\scoop\shims;$env:PATH"
-          # The exact command from the docs:
-          # scoop bucket add tasklynx https://github.com/peekstore/tasklynx
-          scoop bucket add tasklynx https://github.com/peekstore/tasklynx
-          # scoop install tasklynx
-          scoop install tasklynx 2>&1 || `
-            Write-Host "::warning::scoop install binary download skipped (may need published release)"
-          scoop info tasklynx 2>&1 || true
-
-  # ──────────────────────────────────────────────────────────────
-  # 15. Arch Pacman — cd packaging/pacman && makepkg -si
-  # ──────────────────────────────────────────────────────────────
-  test-arch-pacman:
-    name: "cd packaging/pacman && makepkg -si"
+  test-cargo:
+    name: "cargo install --path . --locked"
     runs-on: ubuntu-latest
-    container:
-      image: archlinux:latest
     steps:
       - uses: actions/checkout@v4
-      - name: Install build dependencies
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install via cargo
         run: |
-          pacman -Syu --noconfirm base-devel git curl
-          useradd -m builder
-          chown -R builder:builder .
-      - name: Validate PKGBUILD matches .SRCINFO
-        run: |
-          su builder -c "cd packaging/pacman && makepkg --printsrcinfo > .SRCINFO.gen"
-          diff -u packaging/pacman/.SRCINFO packaging/pacman/.SRCINFO.gen || \
-            echo "::warning::.SRCINFO may need regeneration — run: cd packaging/pacman && makepkg --printsrcinfo > .SRCINFO"
-      - name: "Dry-run makepkg (mirrors: cd packaging/pacman && makepkg -si)"
-        run: |
-          # makepkg --nobuild verifies the PKGBUILD syntax and sources without building
-          su builder -c "cd packaging/pacman && makepkg --nobuild --noprepare --skippgpcheck 2>&1 || true"
-          echo "::notice::To install on Arch Linux, run from the project root:"
-          echo "::notice::  git clone https://github.com/peekstore/tasklynx.git"
-          echo "::notice::  cd tasklynx/packaging/pacman && makepkg -si"
+          cargo install --path . --locked
+          tasklynx --version
+          tx --version
 
   # ──────────────────────────────────────────────────────────────
-  # 16. AI Reader (llms.txt) validation
+  # 11. AI Reader (llms.txt) validation
   # ──────────────────────────────────────────────────────────────
   test-ai-reader:
     name: "AI Reader (llms.txt) validation"

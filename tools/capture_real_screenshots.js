@@ -72,8 +72,8 @@ const sampleData = {
     },
     {
       id: "7b4e9f12-0000-4000-8000-000000000004",
-      title: "Multi-platform package managers (apt, pacman, brew, choco)",
-      description: "Automate packaging across Homebrew, Pacman, Debian APT, Scoop, Winget, Chocolatey, and mise.",
+      title: "Multi-platform distribution (APT, npm, pipx, choco, cargo)",
+      description: "Automate packaging across APT, npm, pipx, Chocolatey, Cargo, and shell installers.",
       project: "packaging",
       tags: ["devops", "ci", "release"],
       status: "doing",

@@ -248,15 +248,11 @@ jobs:
             echo ""
             echo "| Manager | Platform | Command |"
             echo "| --- | --- | --- |"
-            echo "| **Homebrew** | macOS / Linux | \`brew install peekstore/tasklynx/tasklynx\` |"
-            echo "| **Winget** | Windows | \`winget install peekstore.tasklynx\` |"
-            echo "| **Scoop** | Windows | \`scoop bucket add tasklynx https://github.com/${{ github.repository }} && scoop install tasklynx\` |"
+            echo "| **APT / Debian** | Debian / Ubuntu | \`curl -LO https://github.com/${{ github.repository }}/releases/download/${TAG}/tasklynx_${VERSION}_amd64.deb && sudo apt install ./tasklynx_${VERSION}_amd64.deb\` |"
+            echo "| **npm** | Cross-platform (Node.js) | \`npm install -g tasklynx\` / \`npx tasklynx\` |"
+            echo "| **pipx** | Cross-platform (Python) | \`pipx install git+https://github.com/${{ github.repository }}.git#subdirectory=packaging/pipx\` |"
             echo "| **Chocolatey** | Windows | \`choco install tasklynx\` |"
-            echo "| **npm** | Cross-platform | \`npm install -g tasklynx\` |"
-            echo "| **pipx** | Cross-platform | \`pipx install git+https://github.com/${{ github.repository }}.git#subdirectory=packaging/pipx\` |"
-            echo "| **APT / Debian** | Debian / Ubuntu | \`sudo apt install ./tasklynx_${VERSION}_amd64.deb\` |"
-            echo "| **mise** | Linux / macOS | \`mise use -g ubi:peekstore/tasklynx\` |"
-            echo "| **Nix** | Linux / macOS | \`nix run github:${{ github.repository }}\` |"
+            echo "| **Cargo** | Cross-platform (Rust) | \`cargo install --git https://github.com/${{ github.repository }}.git --locked\` |"
             echo ""
             echo "### 📥 Direct Downloads & Checksums"
             echo ""
@@ -360,7 +356,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add packaging/ bucket/ Formula/
+          git add packaging/
           if git diff --staged --quiet; then
             echo "No manifest changes to commit."
           else

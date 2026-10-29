@@ -3,13 +3,13 @@
 ## 0.0.1-beta-4
 
 - Added dynamic release notes generation in GitHub Actions with changelog, installation, downloads, and AI reader links.
-- Expanded installer test matrix covering all 12 distribution methods: Linux x64/arm64, macOS, Windows PowerShell, Android Termux ABIs, Nix Flake, pipx, npm, Debian .deb, Homebrew, mise, Chocolatey, Winget, Scoop, and Pacman.
+- Streamlined distribution matrix covering core supported installation methods: Linux x64/arm64, macOS, Windows PowerShell, Android Termux ABIs, APT (.deb), npm, pipx, Chocolatey, and Cargo.
 - Added AI reader (`llms.txt` and `llms-full.txt`) links and badges to README and documentation.
 - Dynamic auto-version synchronization across all 30 manifests and package repositories.
 
 ## 0.0.1-beta-3
 
-- Complete support for multi-package managers (mise, pacman, apt, homebrew, pipx, winget, scoop, chocolatey, npm).
+- Support for package managers (apt, pipx, chocolatey, npm, and cargo).
 - Automated package checksum syncing via GitHub Actions.
 - Real high-DPI screenshots generated and updated via headless Chromium automation in CI.
 - Dual dark/light mode banner support for Void MkDocs theme and GitHub README.
