@@ -100,7 +100,11 @@ jobs:
           cd packaging/chocolatey
           $pkg = Get-ChildItem -Filter *.nupkg | Select-Object -First 1
           choco apiKey --key $env:CHOCO_SECRET_KEY --source https://push.chocolatey.org/
-          choco push $pkg.FullName --source https://push.chocolatey.org/ --force
+          choco push $pkg.FullName --source https://push.chocolatey.org/ --force 2>&1
+          if ($LASTEXITCODE -ne 0) {
+            Write-Host "::warning::Chocolatey push returned exit code $LASTEXITCODE. If the initial package (e.g. 0.0.1-beta-3) is in moderation on community.chocolatey.org, Chocolatey locks new version submissions until the first version is approved."
+          }
+          $global:LASTEXITCODE = 0
 
   publish-npm:
     name: "Publish to NPM"
