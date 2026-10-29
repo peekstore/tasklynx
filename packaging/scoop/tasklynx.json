@@ -6,11 +6,11 @@
   "architecture": {
     "64bit": {
       "url": "https://github.com/peekstore/tasklynx/releases/download/v0.0.1-beta-4/tasklynx-windows-amd64.exe#/tasklynx.exe",
-      "hash": "8b184f5fbdacf0332f98431488dce12af9844a8edfe0d5ab24bce77204365de0"
+      "hash": "4ffc0f15e089f521d71be53b8ec82010ab7fa6267c502de3a0194906ec6797e1"
     },
     "arm64": {
       "url": "https://github.com/peekstore/tasklynx/releases/download/v0.0.1-beta-4/tasklynx-windows-arm64.exe#/tasklynx.exe",
-      "hash": "517aac770b5efd81e34e2f3fd70ab58c09cced4c1f59bff541e38255ef0c4182"
+      "hash": "04d278213f5665f1ce9e10e166534b9ef246c171ae7d8b962a1d851a8b40375e"
     }
   },
   "bin": [
