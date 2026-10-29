@@ -8,9 +8,32 @@ theme:
   name: void
   logo: logo.svg
   favicon: logo.svg
+  palette:
+    - scheme: slate
+      primary: black
+      accent: red
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+    - scheme: default
+      primary: white
+      accent: red
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+  void:
+    ai_reader:
+      enabled: true
+      markup: true
+      url_style: sidecar
+      auto_title: true
+      llms: true
+      llms_full: true
+      sitemap: true
 extra_css:
   - stylesheets/extra.css
 extra:
+  void_version: 1
   void_logo_dark: assets/icon-on-dark-mode.svg
   void_logo_light: assets/icon-on-light-mode.svg
   void_favicon_dark: assets/favicon-on-dark-mode.svg

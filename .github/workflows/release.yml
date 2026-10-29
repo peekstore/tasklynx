@@ -226,6 +226,13 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Download artifacts
         uses: actions/download-artifact@v4
         with:
@@ -282,6 +289,22 @@ jobs:
           EOF
 
           ls -lh
+
+      - name: Write latest SHA256 sum hashes on package manifests
+        run: |
+          ./tools/update_hashes.sh final "${{ needs.prepare.outputs.version }}"
+
+      - name: Commit updated package manifests with latest hashes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add packaging/ bucket/ Formula/
+          if git diff --staged --quiet; then
+            echo "No manifest changes to commit."
+          else
+            git commit -m "chore(release): write latest sum hashes on package manifests [skip ci]"
+            git push origin HEAD:main || true
+          fi
 
       - name: Remove existing releases for tag (keep tag)
         env:
