@@ -54,7 +54,7 @@ jobs:
           tasklynx --version
           tx --version
       - name: Upload deb artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: tasklynx-deb
           path: "*.deb"
@@ -86,7 +86,7 @@ jobs:
           cd packaging/chocolatey
           choco pack tasklynx.nuspec
       - name: Upload choco nupkg
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: tasklynx-nupkg
           path: packaging/chocolatey/*.nupkg
