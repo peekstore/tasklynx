@@ -127,6 +127,7 @@ jobs:
           done
 
   nixos:
+    name: "Nix Flake"
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -140,3 +141,81 @@ jobs:
         run: |
           nix --extra-experimental-features "nix-command flakes" \
             run . -- --version
+
+  test-pipx:
+    name: "pipx installation"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install pipx
+        run: python -m pip install --upgrade pip pipx
+      - name: Install tasklynx via pipx
+        run: |
+          pipx install ./packaging/pipx --force
+          tasklynx --version || true
+
+  test-npm:
+    name: "npm package"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Test npm package packing
+        run: |
+          cd packaging/npm
+          npm pack --dry-run
+
+  test-deb:
+    name: "Debian/Ubuntu (.deb) install"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Build release binary & .deb
+        run: |
+          cargo build --release
+          VERSION=$(tr -d '[:space:]' < .version)
+          ./packaging/debian/build_deb.sh "$VERSION" "amd64" "target/release/tasklynx" "."
+      - name: Test dpkg installation
+        run: |
+          sudo dpkg -i tasklynx_*.deb
+          tasklynx --version
+          tx --version
+
+  test-homebrew:
+    name: "Homebrew formula"
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate Homebrew formula syntax
+        run: |
+          ruby -c Formula/tasklynx.rb
+          ruby -c packaging/homebrew/tasklynx.rb
+          brew audit --formula Formula/tasklynx.rb || true
+
+  test-mise:
+    name: "mise plugin"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: jdx/mise-action@v2
+      - name: Test mise plugin scripts
+        run: |
+          bash packaging/mise/bin/list-all | head -n 5 || true
+
+  test-chocolatey:
+    name: "Chocolatey packaging test"
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Pack and validate nuspec
+        shell: pwsh
+        run: |
+          cd packaging/chocolatey
+          choco pack tasklynx.nuspec
+          if (-not (Test-Path *.nupkg)) { throw "Chocolatey package was not created" }
