@@ -1,0 +1,70 @@
+name: Auto Version Sync & Tag
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.version'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'New version to bump (e.g. 0.0.1-beta-4)'
+        required: false
+
+permissions:
+  contents: write
+
+jobs:
+  sync-and-tag:
+    name: "Sync Version & Push Tag"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Update version from input if provided
+        if: github.event.inputs.version != ''
+        run: |
+          echo "${{ github.event.inputs.version }}" > .version
+
+      - name: Synchronize version across all manifests
+        run: |
+          chmod +x ./tools/sync_version.sh
+          ./tools/sync_version.sh
+
+      - name: Commit manifest updates if changed
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --staged --quiet; then
+            echo "No manifest changes to commit."
+          else
+            VERSION=$(tr -d '[:space:]' < .version)
+            git commit -m "chore(release): sync version to v${VERSION} [skip ci]"
+            git push origin HEAD:main
+          fi
+
+      - name: Create and push version tag
+        run: |
+          VERSION=$(tr -d '[:space:]' < .version)
+          VERSION="${VERSION#v}"
+          TAG="v${VERSION}"
+          
+          git fetch --tags
+          if git rev-parse "$TAG" >/dev/null 2>&1; then
+            echo "Tag $TAG already exists. Skipping tag creation."
+          else
+            echo "Creating annotated tag: $TAG"
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git tag -a "$TAG" -m "Tasklynx ${TAG}"
+            git push origin "$TAG"
+            echo "Pushed tag: $TAG"
+          fi
