@@ -13,7 +13,7 @@ if [ -z "$VERSION" ]; then
   if [ -f "${ROOT_DIR}/.version" ]; then
     VERSION="$(tr -d '[:space:]' < "${ROOT_DIR}/.version")"
   else
-    VERSION="0.0.1-beta-3"
+    VERSION="0.0.1-beta-4"
   fi
 fi
 VERSION="${VERSION#v}"

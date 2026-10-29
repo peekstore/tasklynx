@@ -193,30 +193,92 @@ jobs:
         id: gen
         run: |
           TAG="${{ needs.prepare.outputs.tag }}"
+          VERSION="${{ needs.prepare.outputs.version }}"
           COMMIT="${{ needs.prepare.outputs.commit }}"
+          
+          # Extract release notes from CHANGELOG.md if present
+          CHANGELOG_NOTES=""
+          if [ -f "CHANGELOG.md" ]; then
+            CHANGELOG_NOTES=$(awk -v ver="$VERSION" '
+              $0 ~ "^## .*" ver { found=1; next }
+              found && /^## / { exit }
+              found { print }
+            ' CHANGELOG.md | sed -e :a -e '/^\n*$/{$d;N;};/\n$/ba')
+          fi
+
+          # If no explicit changelog section found, generate from git commit history
+          if [ -z "$CHANGELOG_NOTES" ]; then
+            PREV_TAG=$(git describe --tags --abbrev=0 "${TAG}^" 2>/dev/null || true)
+            if [ -n "$PREV_TAG" ]; then
+              CHANGELOG_NOTES=$(git log "${PREV_TAG}..HEAD" --pretty=format:"* %s (%h)" --no-merges || true)
+            else
+              CHANGELOG_NOTES=$(git log -n 15 --pretty=format:"* %s (%h)" --no-merges || true)
+            fi
+          fi
+
           {
             echo 'body<<EOF'
-            echo "## tasklynx ${TAG}"
+            echo "## Tasklynx ${TAG}"
             echo ""
-            echo "> Commit: \`${COMMIT}\` | Publisher: **${{ env.PUBLISHER_NAME }}** <${{ env.PUBLISHER_EMAIL }}>"
+            echo "A local-first, developer-focused task manager with Git-style workflows, terminal Kanban board, and responsive web dashboard."
             echo ""
-            echo "### Downloads"
-            echo "| Platform | Architecture | File |"
-            echo "|----------|-------------|------|"
-            echo "| Windows | AMD64 | \`tasklynx-windows-amd64.exe\` |"
-            echo "| Windows | ARM64 | \`tasklynx-windows-arm64.exe\` |"
-            echo "| Linux | AMD64 | \`tasklynx-linux-amd64\` |"
-            echo "| Linux | ARM64 | \`tasklynx-linux-arm64\` |"
-            echo "| macOS | AMD64 (Intel) | \`tasklynx-darwin-amd64\` |"
-            echo "| macOS | ARM64 (Apple Silicon) | \`tasklynx-darwin-arm64\` |"
-            echo "| Android (Termux) | arm64-v8a | \`tasklynx-android-arm64-v8a\` |"
-            echo "| Android (Termux) | armeabi-v7a | \`tasklynx-android-armeabi-v7a\` |"
-            echo "| Android (Termux) | x86_64 | \`tasklynx-android-x86_64\` |"
+            echo "> **Release:** \`${TAG}\` | **Commit:** [\`${COMMIT}\`](https://github.com/${{ github.repository }}/commit/${COMMIT}) | **Maintainer:** [${{ env.PUBLISHER_NAME }}](https://github.com/rkriad585) &lt;${{ env.PUBLISHER_EMAIL }}&gt;"
             echo ""
-            echo "### Verify Checksum"
+            echo "### 🚀 What's Changed"
+            echo ""
+            if [ -n "$CHANGELOG_NOTES" ]; then
+              echo "$CHANGELOG_NOTES"
+            else
+              echo "* Automated build & release for ${TAG}"
+            fi
+            echo ""
+            echo "### 📦 Quick Installation"
+            echo ""
+            echo "#### Linux / macOS / Android (Termux):"
             echo "\`\`\`bash"
-            echo "sha256sum --check tasklynx-linux-amd64.sha256"
+            echo "curl -fsSL https://raw.githubusercontent.com/${{ github.repository }}/main/installer.sh | sh"
             echo "\`\`\`"
+            echo ""
+            echo "#### Windows (PowerShell):"
+            echo "\`\`\`powershell"
+            echo "irm https://raw.githubusercontent.com/${{ github.repository }}/main/installer.ps1 | iex"
+            echo "\`\`\`"
+            echo ""
+            echo "### 🛠 Package Managers"
+            echo ""
+            echo "| Manager | Platform | Command |"
+            echo "| --- | --- | --- |"
+            echo "| **Homebrew** | macOS / Linux | \`brew install peekstore/tasklynx/tasklynx\` |"
+            echo "| **Winget** | Windows | \`winget install peekstore.tasklynx\` |"
+            echo "| **Scoop** | Windows | \`scoop bucket add tasklynx https://github.com/${{ github.repository }} && scoop install tasklynx\` |"
+            echo "| **Chocolatey** | Windows | \`choco install tasklynx\` |"
+            echo "| **npm** | Cross-platform | \`npm install -g tasklynx\` |"
+            echo "| **pipx** | Cross-platform | \`pipx install git+https://github.com/${{ github.repository }}.git#subdirectory=packaging/pipx\` |"
+            echo "| **APT / Debian** | Debian / Ubuntu | \`sudo apt install ./tasklynx_${VERSION}_amd64.deb\` |"
+            echo "| **mise** | Linux / macOS | \`mise use -g ubi:peekstore/tasklynx\` |"
+            echo "| **Nix** | Linux / macOS | \`nix run github:${{ github.repository }}\` |"
+            echo ""
+            echo "### 📥 Direct Downloads & Checksums"
+            echo ""
+            echo "| Platform | Architecture | Binary | Archive |"
+            echo "| :--- | :--- | :--- | :--- |"
+            echo "| Windows | AMD64 (x86_64) | [\`tasklynx-windows-amd64.exe\`](https://github.com/${{ github.repository }}/releases/download/${TAG}/tasklynx-windows-amd64.exe) | [\`tasklynx-windows-amd64.zip\`](https://github.com/${{ github.repository }}/releases/download/${TAG}/tasklynx-windows-amd64.zip) |"
+            echo "| Windows | ARM64 (aarch64) | [\`tasklynx-windows-arm64.exe\`](https://github.com/${{ github.repository }}/releases/download/${TAG}/tasklynx-windows-arm64.exe) | [\`tasklynx-windows-arm64.zip\`](https://github.com/${{ github.repository }}/releases/download/${TAG}/tasklynx-windows-arm64.zip) |"
+            echo "| Linux | AMD64 (x86_64) | [\`tasklynx-linux-amd64\`](https://github.com/${{ github.repository }}/releases/download/${TAG}/tasklynx-linux-amd64) | [\`tasklynx-linux-amd64.tar.gz\`](https://github.com/${{ github.repository }}/releases/download/${TAG}/tasklynx-linux-amd64.tar.gz) |"
+            echo "| Linux | ARM64 (aarch64) | [\`tasklynx-linux-arm64\`](https://github.com/${{ github.repository }}/releases/download/${TAG}/tasklynx-linux-arm64) | [\`tasklynx-linux-arm64.tar.gz\`](https://github.com/${{ github.repository }}/releases/download/${TAG}/tasklynx-linux-arm64.tar.gz) |"
+            echo "| macOS | Apple Silicon (arm64) | [\`tasklynx-darwin-arm64\`](https://github.com/${{ github.repository }}/releases/download/${TAG}/tasklynx-darwin-arm64) | [\`tasklynx-darwin-arm64.tar.gz\`](https://github.com/${{ github.repository }}/releases/download/${TAG}/tasklynx-darwin-arm64.tar.gz) |"
+            echo "| macOS | Intel (x86_64) | [\`tasklynx-darwin-amd64\`](https://github.com/${{ github.repository }}/releases/download/${TAG}/tasklynx-darwin-amd64) | [\`tasklynx-darwin-amd64.tar.gz\`](https://github.com/${{ github.repository }}/releases/download/${TAG}/tasklynx-darwin-amd64.tar.gz) |"
+            echo "| Android (Termux) | arm64-v8a | [\`tasklynx-android-arm64-v8a\`](https://github.com/${{ github.repository }}/releases/download/${TAG}/tasklynx-android-arm64-v8a) | [\`tasklynx-android-arm64-v8a.tar.gz\`](https://github.com/${{ github.repository }}/releases/download/${TAG}/tasklynx-android-arm64-v8a.tar.gz) |"
+            echo "| Android (Termux) | armeabi-v7a | [\`tasklynx-android-armeabi-v7a\`](https://github.com/${{ github.repository }}/releases/download/${TAG}/tasklynx-android-armeabi-v7a) | [\`tasklynx-android-armeabi-v7a.tar.gz\`](https://github.com/${{ github.repository }}/releases/download/${TAG}/tasklynx-android-armeabi-v7a.tar.gz) |"
+            echo "| Android (Termux) | x86_64 | [\`tasklynx-android-x86_64\`](https://github.com/${{ github.repository }}/releases/download/${TAG}/tasklynx-android-x86_64) | [\`tasklynx-android-x86_64.tar.gz\`](https://github.com/${{ github.repository }}/releases/download/${TAG}/tasklynx-android-x86_64.tar.gz) |"
+            echo "| Debian / Ubuntu | amd64 | [\`tasklynx_${VERSION}_amd64.deb\`](https://github.com/${{ github.repository }}/releases/download/${TAG}/tasklynx_${VERSION}_amd64.deb) | |"
+            echo "| Debian / Ubuntu | arm64 | [\`tasklynx_${VERSION}_arm64.deb\`](https://github.com/${{ github.repository }}/releases/download/${TAG}/tasklynx_${VERSION}_arm64.deb) | |"
+            echo ""
+            echo "Aggregate checksums for all files are listed in [\`SHA256SUMS.txt\`](https://github.com/${{ github.repository }}/releases/download/${TAG}/SHA256SUMS.txt)."
+            echo ""
+            echo "### 🤖 AI Reader Support"
+            echo "- Summary: [\`llms.txt\`](https://peekstore.github.io/tasklynx/llms.txt)"
+            echo "- Complete Documentation: [\`llms-full.txt\`](https://peekstore.github.io/tasklynx/llms-full.txt)"
             echo "EOF"
           } >> "$GITHUB_OUTPUT"
 
@@ -326,7 +388,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ needs.prepare.outputs.tag }}
-          name: "tasklynx ${{ needs.prepare.outputs.tag }}"
+          name: "Tasklynx ${{ needs.prepare.outputs.tag }}"
           body: ${{ needs.changelog.outputs.body }}
           prerelease: ${{ needs.prepare.outputs.prerelease }}
           draft: false

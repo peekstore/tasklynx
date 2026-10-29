@@ -1,7 +1,7 @@
 class Tasklynx < Formula
   desc "Developer-first local task manager with Git-style workflows"
   homepage "https://peekstore.github.io/tasklynx"
-  version "0.0.1-beta-3"
+  version "0.0.1-beta-4"
   license "MIT"
 
   if OS.mac? && Hardware::CPU.intel?

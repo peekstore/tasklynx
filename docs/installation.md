@@ -43,12 +43,12 @@ The installer writes to `%USERPROFILE%\.config\peekstore\tasklynx\bin`, updates 
 Both installers honor `TASKLYNX_VERSION`:
 
 ```bash
-TASKLYNX_VERSION=v0.0.1-beta-3 \
+TASKLYNX_VERSION=v0.0.1-beta-4 \
   curl -fsSL https://raw.githubusercontent.com/peekstore/tasklynx/main/installer.sh | sh
 ```
 
 ```powershell
-$env:TASKLYNX_VERSION = "v0.0.1-beta-3"
+$env:TASKLYNX_VERSION = "v0.0.1-beta-4"
 irm https://raw.githubusercontent.com/peekstore/tasklynx/main/installer.ps1 | iex
 ```
 
@@ -101,9 +101,9 @@ makepkg -si
 Download the `.deb` release package from [Releases](https://github.com/peekstore/tasklynx/releases):
 
 ```bash
-sudo apt install ./tasklynx_0.0.1-beta-3_amd64.deb
+sudo apt install ./tasklynx_0.0.1-beta-4_amd64.deb
 # or:
-sudo dpkg -i tasklynx_0.0.1-beta-3_amd64.deb
+sudo dpkg -i tasklynx_0.0.1-beta-4_amd64.deb
 ```
 
 ### npm / npx (Node.js)

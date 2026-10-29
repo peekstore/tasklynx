@@ -13,11 +13,13 @@
     <a href="https://github.com/peekstore/tasklynx/releases"><img alt="Latest release" src="https://img.shields.io/github/v/release/peekstore/tasklynx?include_prereleases&style=flat-square&color=ff453a"></a>
     <a href="https://github.com/peekstore/tasklynx/actions/workflows/ci.yml"><img alt="CI" src="https://img.shields.io/github/actions/workflow/status/peekstore/tasklynx/ci.yml?branch=main&style=flat-square"></a>
     <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/github/license/peekstore/tasklynx?style=flat-square"></a>
+    <a href="https://peekstore.github.io/tasklynx/llms.txt"><img alt="AI Reader (llms.txt)" src="https://img.shields.io/badge/AI_Reader-llms.txt-4a90e2?style=flat-square"></a>
     <img alt="Platforms" src="https://img.shields.io/badge/platform-linux%20%7C%20macos%20%7C%20windows%20%7C%20android-8f949e?style=flat-square">
   </p>
 
   <p>
     <a href="https://peekstore.github.io/tasklynx/">Documentation</a> ·
+    <a href="https://peekstore.github.io/tasklynx/llms.txt">AI Reader</a> ·
     <a href="https://github.com/peekstore/tasklynx/releases">Releases</a> ·
     <a href="https://github.com/peekstore/tasklynx/issues">Issues</a> ·
     <a href="https://github.com/peekstore/tasklynx/tree/main/docs">Docs source</a>
@@ -69,7 +71,7 @@ More images and descriptions in the [screenshots gallery](https://peekstore.gith
 | **Homebrew** | macOS / Linux | `brew install peekstore/tasklynx/tasklynx` |
 | **mise** | Linux / macOS | `mise use -g ubi:peekstore/tasklynx` |
 | **Pacman** | Arch Linux | `cd packaging/pacman && makepkg -si` |
-| **APT** | Debian / Ubuntu | `sudo apt install ./tasklynx_0.0.1-beta-3_amd64.deb` |
+| **APT** | Debian / Ubuntu | `sudo apt install ./tasklynx_0.0.1-beta-4_amd64.deb` |
 | **npm** | Cross-platform | `npm install -g tasklynx` / `npx tasklynx` |
 | **pipx** | Cross-platform | `pipx install git+https://github.com/peekstore/tasklynx.git#subdirectory=packaging/pipx` |
 | **Winget** | Windows | `winget install peekstore.tasklynx` |
@@ -90,7 +92,7 @@ The installer places `tasklynx` and the `tx` alias in `${XDG_CONFIG_HOME:-$HOME/
 Pin a specific version:
 
 ```bash
-TASKLYNX_VERSION=v0.0.1-beta-3 \
+TASKLYNX_VERSION=v0.0.1-beta-4 \
   curl -fsSL https://raw.githubusercontent.com/peekstore/tasklynx/main/installer.sh | sh
 ```
 

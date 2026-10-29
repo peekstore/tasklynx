@@ -6,7 +6,7 @@ const path = require('path');
 const https = require('https');
 const { spawnSync } = require('child_process');
 
-const VERSION = '0.0.1-beta-3';
+const VERSION = '0.0.1-beta-4';
 const GITHUB_REPO = 'peekstore/tasklynx';
 
 function getBinaryName() {
