@@ -164,6 +164,10 @@ for MD_FILE in "${ROOT_DIR}/README.md" "${ROOT_DIR}/docs/index.md" "${ROOT_DIR}/
     sed -i -E "s/\\\$env:TASKLYNX_VERSION = \"v[0-9a-zA-Z.-]+\"/\$env:TASKLYNX_VERSION = \"${TAG}\"/g" "$MD_FILE"
   fi
 done
+if [ -f "${ROOT_DIR}/docs/development.md" ]; then
+  sed -i -E "s/git tag -a v[0-9a-zA-Z.-]+ -m \"Tasklynx v[0-9a-zA-Z.-]+\"/git tag -a ${TAG} -m \"Tasklynx ${TAG}\"/" "${ROOT_DIR}/docs/development.md"
+  sed -i -E "s/git push origin v[0-9a-zA-Z.-]+/git push origin ${TAG}/" "${ROOT_DIR}/docs/development.md"
+fi
 if [ -f "${ROOT_DIR}/docs/index.md" ]; then
   sed -i -E "s/- \*\*Version:\*\* .*/- **Version:** ${FULL_VERSION}/" "${ROOT_DIR}/docs/index.md"
 fi

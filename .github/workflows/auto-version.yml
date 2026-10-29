@@ -8,8 +8,9 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'New version to bump (e.g. 0.0.1-beta-4)'
+        description: 'Target release version (leave blank to read from .version)'
         required: false
+        default: ''
 
 permissions:
   contents: write
@@ -25,46 +26,55 @@ jobs:
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Setup Git identity
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Resolve target version
+        id: resolve
+        run: |
+          INPUT_VER="${{ github.event.inputs.version }}"
+          if [ -n "$INPUT_VER" ]; then
+            echo "$INPUT_VER" > .version
+          fi
+          VERSION=$(tr -d '[:space:]' < .version)
+          VERSION="${VERSION#v}"
+          TAG="v${VERSION}"
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+          echo "Target version: ${VERSION} (${TAG})"
+
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
-
-      - name: Update version from input if provided
-        if: github.event.inputs.version != ''
-        run: |
-          echo "${{ github.event.inputs.version }}" > .version
 
       - name: Synchronize version across all manifests
         run: |
           chmod +x ./tools/sync_version.sh
-          ./tools/sync_version.sh
+          ./tools/sync_version.sh "${{ steps.resolve.outputs.version }}"
 
       - name: Commit manifest updates if changed
+        id: commit
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
           git add -A
           if git diff --staged --quiet; then
             echo "No manifest changes to commit."
           else
-            VERSION=$(tr -d '[:space:]' < .version)
-            git commit -m "chore(release): sync version to v${VERSION} [skip ci]"
+            TAG="${{ steps.resolve.outputs.tag }}"
+            git commit -m "chore(release): bump version to ${TAG} [skip ci]"
             git push origin HEAD:main
+            echo "Committed and pushed version changes."
           fi
 
-      - name: Create and push version tag
+      - name: Create and push annotated tag
         run: |
-          VERSION=$(tr -d '[:space:]' < .version)
-          VERSION="${VERSION#v}"
-          TAG="v${VERSION}"
-          
+          TAG="${{ steps.resolve.outputs.tag }}"
           git fetch --tags
           if git rev-parse "$TAG" >/dev/null 2>&1; then
-            echo "Tag $TAG already exists. Skipping tag creation."
+            echo "Tag $TAG already exists on remote. Skipping creation."
           else
             echo "Creating annotated tag: $TAG"
-            git config user.name "github-actions[bot]"
-            git config user.email "github-actions[bot]@users.noreply.github.com"
             git tag -a "$TAG" -m "Tasklynx ${TAG}"
             git push origin "$TAG"
-            echo "Pushed tag: $TAG"
+            echo "Successfully created and pushed tag $TAG!"
           fi
