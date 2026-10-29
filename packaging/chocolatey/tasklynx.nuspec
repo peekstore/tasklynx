@@ -7,13 +7,13 @@
     <owners>rkriad585</owners>
     <title>Tasklynx</title>
     <authors>RK Riad Khan</authors>
-    <projectUrl>https://github.com/peekstore/tasklynx</projectUrl>
-    <iconUrl>https://raw.githubusercontent.com/peekstore/tasklynx/main/assets/favicon.svg</iconUrl>
+    <projectUrl>https://peekstore.github.io/tasklynx</projectUrl>
+    <iconUrl>https://raw.githubusercontent.com/peekstore/tasklynx/refs/heads/main/tasklynx-logos/icon-on-dark-mode.svg</iconUrl>
     <copyright>2026 RK Riad Khan</copyright>
-    <licenseUrl>https://github.com/peekstore/tasklynx/blob/main/LICENSE</licenseUrl>
+    <licenseUrl>https://raw.githubusercontent.com/peekstore/tasklynx/refs/heads/main/LICENSE</licenseUrl>
     <requireLicenseAcceptance>false</requireLicenseAcceptance>
     <projectSourceUrl>https://github.com/peekstore/tasklynx</projectSourceUrl>
-    <docsUrl>https://peekstore.github.io/tasklynx/</docsUrl>
+    <docsUrl>https://peekstore.github.io/tasklynx</docsUrl>
     <bugTrackerUrl>https://github.com/peekstore/tasklynx/issues</bugTrackerUrl>
     <tags>tasklynx tasks todo kanban cli tui developer-tools git</tags>
     <summary>Developer-first local task manager with Git-style workflows</summary>

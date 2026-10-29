@@ -30,12 +30,12 @@
     "productivity",
     "developer-tools"
   ],
-  "author": "RK Riad Khan <rkriad585@gmail.com>",
+  "author": "RK Riad Khan <rkriad585@gmail.com> (https://rkriad585.github.io)",
   "license": "MIT",
   "bugs": {
     "url": "https://github.com/peekstore/tasklynx/issues"
   },
-  "homepage": "https://github.com/peekstore/tasklynx#readme",
+  "homepage": "https://peekstore.github.io/tasklynx",
   "engines": {
     "node": ">=16.0.0"
   }

@@ -62,7 +62,7 @@ $version = $env:TASKLYNX_VERSION
 if ($version) { $version = "$version".Trim() }
 if (-not $version) {
     try {
-        $raw = Invoke-RestMethod -Uri "https://raw.githubusercontent.com/${GitHubRepo}/${RepoBranch}/.version" -UseBasicParsing
+        $raw = Invoke-RestMethod -Uri "https://raw.githubusercontent.com/${GitHubRepo}/refs/heads/${RepoBranch}/.version" -UseBasicParsing
         $version = "$raw".Trim()
     } catch {}
 }

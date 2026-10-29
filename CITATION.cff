@@ -4,6 +4,8 @@ authors:
   - family-names: "Khan"
     given-names: "RK Riad"
     email: "rkriad585@gmail.com"
+    website: "https://rkriad585.github.io"
+    affiliation: "peekstore"
 title: "Tasklynx: Developer-first local task manager with Git-style workflows"
 version: 0.0.1-beta-2
 date-released: 2026-10-28

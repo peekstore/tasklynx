@@ -3,7 +3,7 @@
 set -e
 
 PROJECT_NAME="tasklynx"
-VERSION_URL="https://raw.githubusercontent.com/peekstore/${PROJECT_NAME}/main/.version"
+VERSION_URL="https://raw.githubusercontent.com/peekstore/${PROJECT_NAME}/refs/heads/main/.version"
 RELEASE_URL="https://github.com/peekstore/${PROJECT_NAME}/releases/download"
 
 IS_UNINSTALL=false

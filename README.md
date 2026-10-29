@@ -253,12 +253,12 @@ Logos, icons, and banners live in [`tasklynx-logos/`](tasklynx-logos). Use them 
 
 ## License
 
-Released under the [MIT License](LICENSE). Copyright © 2026 [RK Riad Khan](https://github.com/rkriad585).
+Released under the [MIT License](LICENSE). Copyright © 2026 [RK Riad Khan](https://rkriad585.github.io).
 
 <div align="center">
   <sub>
-    Built by <a href="https://github.com/peekstore">peekstore</a> ·
-    <a href="https://peekstore.github.io">Website</a> ·
-    <a href="https://peekstore.github.io/tasklynx">Docs</a>
+    Built with ❤️ by <a href="https://github.com/rkriad585">RK Riad Khan</a> (<a href="https://rkriad585.github.io">Website</a>) at <a href="https://github.com/peekstore">peekstore</a> ·
+    <a href="https://peekstore.github.io">peekstore.github.io</a> ·
+    <a href="https://peekstore.github.io/tasklynx">Documentation</a>
   </sub>
 </div>

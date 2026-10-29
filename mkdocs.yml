@@ -1,7 +1,9 @@
 site_name: Tasklynx
 site_description: Developer-first local task manager
+site_author: RK Riad Khan
 site_url: https://peekstore.github.io/tasklynx/
 repo_url: https://github.com/peekstore/tasklynx
+copyright: Copyright &copy; 2026 RK Riad Khan
 theme:
   name: void
   logo: logo.svg

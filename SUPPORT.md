@@ -22,6 +22,13 @@ If you have questions about how to use Tasklynx:
 - **Bug Reports**: Please open an issue using the [Bug Report template](https://github.com/peekstore/tasklynx/issues/new?template=bug_report.md). Include your OS version, Tasklynx version (`tx --version`), and reproduction steps.
 - **Feature Requests**: Submit ideas via the [Feature Request template](https://github.com/peekstore/tasklynx/issues/new?template=feature_request.md).
 
+## Contact & Maintainers
+
+- **Author**: [RK Riad Khan](https://rkriad585.github.io) · [`rkriad585@gmail.com`](mailto:rkriad585@gmail.com) · [GitHub @rkriad585](https://github.com/rkriad585)
+- **Organization**: [peekstore](https://peekstore.github.io) · [`peekstore585@gmail.com`](mailto:peekstore585@gmail.com) · [GitHub @peekstore](https://github.com/peekstore)
+- **Project Documentation**: [https://peekstore.github.io/tasklynx](https://peekstore.github.io/tasklynx)
+- **Project Source & Docs**: [https://github.com/peekstore/tasklynx/tree/main/docs](https://github.com/peekstore/tasklynx/tree/main/docs)
+
 ## Security Vulnerabilities
 
 If you discover a security vulnerability, please follow our [Security Policy](SECURITY.md) and report it privately rather than in a public issue.

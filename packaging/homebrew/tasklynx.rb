@@ -1,6 +1,6 @@
 class Tasklynx < Formula
   desc "Developer-first local task manager with Git-style workflows"
-  homepage "https://github.com/peekstore/tasklynx"
+  homepage "https://peekstore.github.io/tasklynx"
   version "0.0.1-beta-2"
   license "MIT"
 
