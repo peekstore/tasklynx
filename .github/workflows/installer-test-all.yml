@@ -56,7 +56,7 @@ jobs:
     env:
       TASKLYNX_VERSION: ${{ needs.resolve.outputs.version }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Install via installer.sh
         run: |
           rm -rf ~/.config/peekstore/tasklynx
@@ -75,7 +75,7 @@ jobs:
     env:
       TASKLYNX_VERSION: ${{ needs.resolve.outputs.version }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Install via installer.sh
         run: |
           rm -rf ~/.config/peekstore/tasklynx
@@ -94,7 +94,7 @@ jobs:
     env:
       TASKLYNX_VERSION: ${{ needs.resolve.outputs.version }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Install via installer.sh
         run: |
           rm -rf ~/.config/peekstore/tasklynx
@@ -113,7 +113,7 @@ jobs:
     env:
       TASKLYNX_VERSION: ${{ needs.resolve.outputs.version }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Install via installer.ps1
         shell: pwsh
         run: |
@@ -135,7 +135,7 @@ jobs:
     env:
       TASKLYNX_VERSION: ${{ needs.resolve.outputs.version }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Verify Android ABI selection and assets
         run: |
           set -e
@@ -163,7 +163,7 @@ jobs:
     env:
       TASKLYNX_VERSION: ${{ needs.resolve.outputs.version }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-node@v4
         with:
           node-version: "20"
@@ -194,7 +194,7 @@ jobs:
     name: "pipx install git+https://github.com/peekstore/tasklynx.git#subdirectory=packaging/pipx"
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
@@ -214,7 +214,7 @@ jobs:
     name: "sudo apt install ./tasklynx_<ver>_amd64.deb"
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
       - name: Build release binary
         run: cargo build --release
@@ -236,7 +236,7 @@ jobs:
     name: "choco install tasklynx"
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Pack the Chocolatey package
         shell: pwsh
         run: |
@@ -263,7 +263,7 @@ jobs:
     name: "cargo install --path . --locked"
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
       - name: Install via cargo
         run: |
@@ -279,7 +279,7 @@ jobs:
     name: "AI Reader (llms.txt) validation"
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
