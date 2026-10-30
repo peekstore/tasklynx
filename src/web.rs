@@ -1,5 +1,5 @@
 use crate::{
-    model::{ProjectData, Task},
+    model::{ProjectData, Repeat, Task},
     store,
 };
 use axum::{
@@ -79,6 +79,32 @@ async fn create(State(s): State<WebState>, Json(t): Json<Task>) -> Json<Task> {
     Json(t)
 }
 
+fn merge_task(existing: &mut Task, incoming: Task) -> (Task, Option<Task>) {
+    let next = if existing.status != incoming.status {
+        existing.set_status(incoming.status)
+    } else {
+        None
+    };
+    existing.title = incoming.title;
+    existing.description = incoming.description;
+    existing.project = incoming.project;
+    existing.tags = incoming.tags;
+    existing.priority = incoming.priority;
+    existing.due = incoming.due;
+    existing.branch = incoming.branch;
+    existing.commit = incoming.commit;
+    existing.parent = incoming.parent;
+    existing.estimate_minutes = incoming.estimate_minutes;
+    existing.repeat = incoming.repeat;
+    existing.repeat_until = if existing.repeat == Repeat::None {
+        None
+    } else {
+        incoming.repeat_until
+    };
+    existing.updated_at = chrono::Utc::now();
+    (existing.clone(), next)
+}
+
 async fn update(
     Path(id): Path<String>,
     State(s): State<WebState>,
@@ -87,9 +113,12 @@ async fn update(
     let mut d = s.data.lock().unwrap();
     match store::find_mut(&mut d, &id) {
         Ok(x) => {
-            *x = t.clone();
+            let (updated, next) = merge_task(x, t);
+            if let Some(next) = next {
+                d.tasks.push(next);
+            }
             let _ = store::save(&d);
-            Json(t).into_response()
+            Json(updated).into_response()
         }
         Err(e) => (StatusCode::NOT_FOUND, e.to_string()).into_response(),
     }
@@ -105,5 +134,56 @@ async fn remove(Path(id): Path<String>, State(s): State<WebState>) -> impl IntoR
     } else {
         let _ = store::save(&d);
         (StatusCode::OK, "deleted").into_response()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::model::{local_due_date, Priority, Status};
+
+    fn recurring_task() -> Task {
+        let mut t = Task::new(
+            "Daily task".into(),
+            "default".into(),
+            "main".into(),
+            Priority::Normal,
+            vec![],
+            Some(local_due_date("2026-01-01").unwrap()),
+        );
+        t.repeat = Repeat::Daily;
+        t
+    }
+
+    #[test]
+    fn completing_through_update_creates_next_occurrence() {
+        let mut existing = recurring_task();
+        let id = existing.id;
+        let created_at = existing.created_at;
+        let mut incoming = existing.clone();
+        incoming.status = Status::Done;
+        incoming.title = "Renamed".into();
+
+        let (updated, next) = merge_task(&mut existing, incoming);
+
+        assert_eq!(updated.id, id);
+        assert_eq!(updated.created_at, created_at);
+        assert_eq!(updated.title, "Renamed");
+        assert_eq!(updated.status, Status::Done);
+        assert!(updated.completed_at.is_some());
+        let next = next.unwrap();
+        assert_eq!(next.series_id, Some(id));
+        assert_eq!(next.status, Status::Todo);
+    }
+
+    #[test]
+    fn updating_a_completed_task_does_not_duplicate_occurrence() {
+        let mut existing = recurring_task();
+        existing.set_status(Status::Done);
+        let mut incoming = existing.clone();
+        incoming.status = Status::Done;
+
+        let (_, next) = merge_task(&mut existing, incoming);
+        assert!(next.is_none());
     }
 }

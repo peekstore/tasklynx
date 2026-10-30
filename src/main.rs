@@ -292,13 +292,7 @@ async fn main() -> Result<()> {
             let tid = store::find(&data, &id)?.id.to_string();
             let next = {
                 let t = store::find_mut(&mut data, &id)?;
-                let was_done = t.status == model::Status::Done;
-                t.complete();
-                if was_done {
-                    None
-                } else {
-                    t.next_occurrence()
-                }
+                t.set_status(model::Status::Done)
             };
             if let Some(next) = next {
                 let nid = next.id.to_string();

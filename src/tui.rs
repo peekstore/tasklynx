@@ -1,4 +1,4 @@
-use crate::model::{ProjectData, Status};
+use crate::model::{ProjectData, Repeat, Status};
 use crate::store;
 use anyhow::Result;
 use crossterm::{
@@ -102,7 +102,7 @@ pub fn run(data: &mut ProjectData) -> Result<()> {
                             crate::model::Priority::Low => Color::DarkGray,
                         };
 
-                        let line = Line::from(vec![
+                        let mut spans = vec![
                             Span::raw(prefix),
                             Span::styled(
                                 format!("{:.8} ", t.id),
@@ -126,7 +126,14 @@ pub fn run(data: &mut ProjectData) -> Result<()> {
                                 format!("<{}>", t.project),
                                 Style::default().fg(Color::Cyan),
                             ),
-                        ]);
+                        ];
+                        if t.repeat != Repeat::None {
+                            spans.push(Span::styled(
+                                format!(" ↻{}", t.repeat),
+                                Style::default().fg(Color::Magenta),
+                            ));
+                        }
+                        let line = Line::from(spans);
 
                         let item_style = if is_sel {
                             Style::default().bg(Color::Rgb(30, 35, 45))
@@ -212,20 +219,21 @@ pub fn run(data: &mut ProjectData) -> Result<()> {
                             };
 
                             if let Some(id) = task_id {
-                                if let Ok(task) = store::find_mut(data, &id.to_string()) {
-                                    task.status = match task.status {
+                                let next = if let Ok(task) = store::find_mut(data, &id.to_string())
+                                {
+                                    let target = match task.status {
                                         Status::Todo => Status::Doing,
-                                        Status::Doing => {
-                                            task.complete();
-                                            Status::Done
-                                        }
-                                        Status::Done => {
-                                            task.completed_at = None;
-                                            Status::Todo
-                                        }
+                                        Status::Doing => Status::Done,
+                                        Status::Done => Status::Todo,
                                     };
-                                    task.updated_at = chrono::Utc::now();
+                                    let next = task.set_status(target);
                                     dirty = true;
+                                    next
+                                } else {
+                                    None
+                                };
+                                if let Some(next) = next {
+                                    data.tasks.push(next);
                                 }
                             }
                         }
@@ -243,15 +251,21 @@ pub fn run(data: &mut ProjectData) -> Result<()> {
                             };
 
                             if let Some(id) = task_id {
-                                if let Ok(task) = store::find_mut(data, &id.to_string()) {
-                                    if task.status == Status::Done {
-                                        task.status = Status::Todo;
-                                        task.completed_at = None;
+                                let next = if let Ok(task) = store::find_mut(data, &id.to_string())
+                                {
+                                    let target = if task.status == Status::Done {
+                                        Status::Todo
                                     } else {
-                                        task.complete();
-                                    }
-                                    task.updated_at = chrono::Utc::now();
+                                        Status::Done
+                                    };
+                                    let next = task.set_status(target);
                                     dirty = true;
+                                    next
+                                } else {
+                                    None
+                                };
+                                if let Some(next) = next {
+                                    data.tasks.push(next);
                                 }
                             }
                         }

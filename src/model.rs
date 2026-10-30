@@ -177,6 +177,31 @@ impl Task {
         self.completed_at = Some(Utc::now());
         self.updated_at = Utc::now();
     }
+    pub fn set_status(&mut self, status: Status) -> Option<Task> {
+        let was_done = self.status == Status::Done;
+        match status {
+            Status::Done => {
+                self.complete();
+                if was_done {
+                    None
+                } else {
+                    self.next_occurrence()
+                }
+            }
+            Status::Doing => {
+                self.status = Status::Doing;
+                self.completed_at = None;
+                self.updated_at = Utc::now();
+                None
+            }
+            Status::Todo => {
+                self.status = Status::Todo;
+                self.completed_at = None;
+                self.updated_at = Utc::now();
+                None
+            }
+        }
+    }
     pub fn next_due_date(&self) -> Option<DateTime<Utc>> {
         let base = self
             .due
@@ -434,6 +459,45 @@ mod tests {
         assert_eq!(t.repeat, Repeat::None);
         assert_eq!(t.repeat_until, None);
         assert_eq!(t.series_id, None);
+    }
+
+    #[test]
+    fn set_status_done_creates_next_occurrence() {
+        let mut t = task();
+        t.repeat = Repeat::Daily;
+        t.due = Some(due_on("2026-01-01"));
+
+        let next = t.set_status(Status::Done).unwrap();
+        assert_eq!(t.status, Status::Done);
+        assert!(t.completed_at.is_some());
+        assert_eq!(next.status, Status::Todo);
+        assert_eq!(next.series_id, Some(t.id));
+    }
+
+    #[test]
+    fn set_status_done_is_idempotent() {
+        let mut t = task();
+        t.repeat = Repeat::Daily;
+        t.due = Some(due_on("2026-01-01"));
+        assert!(t.set_status(Status::Done).is_some());
+        assert!(t.set_status(Status::Done).is_none());
+    }
+
+    #[test]
+    fn reopening_clears_completion() {
+        let mut t = task();
+        t.set_status(Status::Done);
+        t.set_status(Status::Todo);
+        assert_eq!(t.status, Status::Todo);
+        assert!(t.completed_at.is_none());
+    }
+
+    #[test]
+    fn doing_keeps_task_open() {
+        let mut t = task();
+        assert!(t.set_status(Status::Doing).is_none());
+        assert_eq!(t.status, Status::Doing);
+        assert!(t.completed_at.is_none());
     }
 
     #[test]
