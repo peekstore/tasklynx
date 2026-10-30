@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+- Added `tx next` with priority, due-date, and blocker-aware ranking.
+- Added task dependencies with `tx block` and `tx unblock`.
+- Added subtasks with `tx subtask` and tree rendering with `tx tree`.
+- Added `tx undo` plus recoverable deletes via `tx trash list|restore|purge`.
+- Added local Git integration with `tx git status` and `tx git link`.
+- Added Git metadata and blocker fields to the task schema with backward-compatible defaults.
+
 ## 0.0.1-beta-4
 
 - Added dynamic release notes generation in GitHub Actions with changelog, installation, downloads, and AI reader links.

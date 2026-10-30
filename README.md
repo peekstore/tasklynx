@@ -140,6 +140,8 @@ tx board                                             # terminal Kanban board
 tx web                                               # dashboard at http://127.0.0.1:8787
 tx doing <id>                                        # mark a task in progress
 tx complete <id>                                     # mark a task done
+tx next                                              # best next task
+tx git status                                        # Git branch and task context
 ```
 
 ### Branches
@@ -173,13 +175,21 @@ tx export --format md > TASKS.md
 | `tx doing <id>` | Mark a task in progress |
 | `tx complete <id>` | Mark a task done |
 | `tx reopen <id>` | Reopen a completed task |
+| `tx next` | Show the best next task to work on |
 | `tx edit <id>` | Edit title, description, priority, project, due date, or tags |
 | `tx duplicate <id>` | Duplicate a task |
-| `tx delete <id>` | Delete a task |
+| `tx delete <id>` | Move a task to trash |
+| `tx undo` | Undo the most recent CLI mutation |
+| `tx trash <list\|restore\|purge>` | Manage deleted tasks |
+| `tx block <id> --by <id>` | Add a task dependency |
+| `tx subtask <parent> <title>` | Create a subtask |
+| `tx tree` | Show subtask trees |
 | `tx search <query>` | Search titles, descriptions, and tags |
 | `tx today` | Show tasks due today or overdue |
+| `tx agenda` | Show upcoming, overdue, and recurring work |
 | `tx stats` | Show task and branch totals |
 | `tx branch <list\|create\|switch\|delete>` | Manage branches |
+| `tx git <status\|link>` | Inspect Git context and link commits |
 | `tx export --format <json\|md>` | Export tasks |
 | `tx board` | Open the terminal Kanban board |
 | `tx web` | Start the web dashboard |

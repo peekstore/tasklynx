@@ -26,13 +26,25 @@ Running `tx` with no subcommand opens the terminal board.
 | `tx doing <id>` | Mark a task in progress |
 | `tx complete <id>` | Mark a task done |
 | `tx reopen <id>` | Reopen a completed task |
-| `tx delete <id>` | Delete a task |
+| `tx next` | Show the best next task to work on |
+| `tx delete <id>` | Move a task to trash |
+| `tx undo` | Undo the most recent CLI mutation |
+| `tx trash list` | List trashed tasks |
+| `tx trash restore <id>` | Restore a trashed task |
+| `tx trash purge` | Permanently remove trashed tasks |
 | `tx edit <id>` | Edit task fields |
 | `tx duplicate <id>` | Duplicate a task |
 | `tx search <query>` | Search titles, descriptions, and tags |
 | `tx today` | Show tasks due today or overdue |
+| `tx agenda [--days N]` | Show upcoming, overdue, and recurring work |
+| `tx block <id> --by <blocker>` | Mark a task as blocked by another |
+| `tx unblock <id> [--by <blocker>]` | Remove one or all blockers |
+| `tx subtask <parent> <title>` | Create a subtask under a parent |
+| `tx tree [id]` | Show parent/child task trees |
 | `tx stats` | Show task and branch totals |
 | `tx branch` | Manage branches |
+| `tx git status` | Show Git and Tasklynx branch context |
+| `tx git link <id>` | Link a task to the current commit |
 | `tx export` | Export tasks as JSON or Markdown |
 | `tx web` | Start the web dashboard |
 | `tx board` | Open the terminal Kanban board |
@@ -133,6 +145,61 @@ tx stats
 - `search` matches title, description, and tags (case-insensitive).
 - `today` prints `OVERDUE` or `TODAY` followed by the short ID and title.
 - `stats` prints `tasks=… done=… open=… overdue=… branches=… projects=…`.
+
+## Choosing the next task
+
+```bash
+tx next
+tx next --project api
+tx next --explain
+tx next --include-blocked
+tx next --all
+```
+
+`tx next` ranks open tasks by priority, due date, and status. Blocked tasks are skipped unless `--include-blocked` is passed. `--all` includes every branch, and `--explain` prints the ranking inputs.
+
+## Dependencies and subtasks
+
+```bash
+tx block <id> --by <blocker-id>
+tx unblock <id> --by <blocker-id>
+tx unblock <id>
+tx subtask <parent-id> "Write migration"
+tx tree
+tx tree <parent-id>
+```
+
+A task is blocked while any task in `blocked_by` is still open. Completing a parent with open subtasks requires `--force`:
+
+```bash
+tx complete <parent-id> --force
+```
+
+Subtasks inherit the parent's project, branch, and priority unless you pass `--priority` or `--due`.
+
+## Undo and trash
+
+```bash
+tx delete <id>
+tx undo
+tx trash list
+tx trash restore <id>
+tx trash purge
+```
+
+Deleting a task moves it to trash instead of removing it immediately. `tx undo` restores the store to its state before the most recent successful mutation, including CLI commands, web edits, and board sessions. The trash can be emptied permanently with `tx trash purge`.
+
+## Git integration
+
+```bash
+tx git status
+tx git link <id>
+tx git link <id> --commit <sha>
+```
+
+`tx git status` reports the repository root, Git branch, HEAD, remote, and open tasks on the current Tasklynx branch. `tx git link` stores the commit, Git branch, and remote URL on the task. When `--commit` is omitted, `HEAD` is used.
+
+Git integration only reads local repository metadata. It does not push, rewrite history, or contact a remote.
 
 ## Branches
 

@@ -133,7 +133,15 @@ pub struct Task {
     #[serde(default)]
     pub branch: String,
     pub commit: Option<String>,
+    #[serde(default)]
+    pub git_branch: String,
+    #[serde(default)]
+    pub git_remote: Option<String>,
+    #[serde(default)]
+    pub git_pr_url: Option<String>,
     pub parent: Option<Uuid>,
+    #[serde(default)]
+    pub blocked_by: Vec<Uuid>,
     #[serde(default)]
     pub estimate_minutes: Option<u32>,
     pub created_at: DateTime<Utc>,
@@ -165,7 +173,11 @@ impl Task {
             series_id: None,
             branch,
             commit: None,
+            git_branch: String::new(),
+            git_remote: None,
+            git_pr_url: None,
             parent: None,
+            blocked_by: Vec::new(),
             estimate_minutes: None,
             created_at: now,
             updated_at: now,
@@ -218,6 +230,8 @@ impl Task {
         next.id = Uuid::new_v4();
         next.status = Status::Todo;
         next.due = Some(next_due);
+        next.commit = None;
+        next.git_pr_url = None;
         next.series_id = Some(self.series_id.unwrap_or(self.id));
         next.created_at = now;
         next.updated_at = now;
@@ -229,6 +243,25 @@ impl Task {
             .map(|d| d < Utc::now() && self.status != Status::Done)
             .unwrap_or(false)
     }
+    pub fn is_blocked(&self, tasks: &[Task]) -> bool {
+        self.blocked_by.iter().any(|id| {
+            tasks
+                .iter()
+                .any(|t| t.id == *id && t.status != Status::Done)
+        })
+    }
+    pub fn open_child_count(&self, tasks: &[Task]) -> usize {
+        tasks
+            .iter()
+            .filter(|t| t.parent == Some(self.id) && t.status != Status::Done)
+            .count()
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TrashEntry {
+    pub task: Task,
+    pub deleted_at: DateTime<Utc>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -240,6 +273,8 @@ pub struct ProjectData {
     pub branches: Vec<String>,
     #[serde(default)]
     pub tasks: Vec<Task>,
+    #[serde(default)]
+    pub trash: Vec<TrashEntry>,
 }
 impl Default for ProjectData {
     fn default() -> Self {
@@ -248,6 +283,7 @@ impl Default for ProjectData {
             current_branch: "main".into(),
             branches: vec!["main".into()],
             tasks: vec![],
+            trash: vec![],
         }
     }
 }
@@ -459,6 +495,39 @@ mod tests {
         assert_eq!(t.repeat, Repeat::None);
         assert_eq!(t.repeat_until, None);
         assert_eq!(t.series_id, None);
+        assert!(t.git_branch.is_empty());
+        assert!(t.blocked_by.is_empty());
+    }
+
+    #[test]
+    fn blocked_task_is_detected_until_blocker_is_done() {
+        let mut blocker = task();
+        let mut blocked = task();
+        blocked.blocked_by.push(blocker.id);
+
+        assert!(blocked.is_blocked(&[blocker.clone(), blocked.clone()]));
+
+        blocker.complete();
+        assert!(!blocked.is_blocked(&[blocker, blocked.clone()]));
+    }
+
+    #[test]
+    fn missing_blockers_are_ignored() {
+        let mut t = task();
+        t.blocked_by.push(Uuid::new_v4());
+        assert!(!t.is_blocked(&[t.clone()]));
+    }
+
+    #[test]
+    fn open_child_count_ignores_done_children() {
+        let parent = task();
+        let mut open = task();
+        open.parent = Some(parent.id);
+        let mut done = task();
+        done.parent = Some(parent.id);
+        done.complete();
+
+        assert_eq!(parent.open_child_count(&[parent.clone(), open, done]), 1);
     }
 
     #[test]

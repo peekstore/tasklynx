@@ -1,6 +1,10 @@
-use crate::model::{Priority, ProjectData, Status, Task};
+use crate::model::{Priority, ProjectData, Status, Task, TrashEntry};
 use anyhow::{anyhow, Context, Result};
-use std::{fs, io::Write, path::PathBuf};
+use std::{
+    fs,
+    io::Write,
+    path::{Path, PathBuf},
+};
 
 pub fn data_dir() -> PathBuf {
     std::env::var_os("TASKLYNX_HOME")
@@ -15,6 +19,10 @@ pub fn path() -> PathBuf {
 
 pub fn lock_path() -> PathBuf {
     data_dir().join(".lock")
+}
+
+pub fn undo_path() -> PathBuf {
+    data_dir().join("undo.json")
 }
 
 /// Advisory cross-process file lock with timeout and stale-lock recovery.
@@ -81,9 +89,10 @@ pub fn load() -> Result<ProjectData> {
     Ok(serde_json::from_str(&fs::read_to_string(p)?)?)
 }
 
-pub fn save(data: &ProjectData) -> Result<()> {
-    fs::create_dir_all(data_dir())?;
-    let p = path();
+fn write_json(p: &Path, data: &ProjectData) -> Result<()> {
+    if let Some(dir) = p.parent() {
+        fs::create_dir_all(dir)?;
+    }
     let tmp = p.with_extension("json.tmp");
     {
         let mut file = fs::File::create(&tmp)?;
@@ -94,9 +103,36 @@ pub fn save(data: &ProjectData) -> Result<()> {
     Ok(())
 }
 
-pub fn add(data: &mut ProjectData, task: Task) -> Result<()> {
-    data.tasks.push(task);
+pub fn save(data: &ProjectData) -> Result<()> {
+    write_json(&path(), data)
+}
+
+/// Save a snapshot of the previous state so `tx undo` can restore it.
+pub fn save_with_undo(data: &ProjectData, previous: &ProjectData) -> Result<()> {
+    write_json(&undo_path(), previous)?;
     save(data)
+}
+
+pub fn load_undo() -> Result<ProjectData> {
+    let p = undo_path();
+    if !p.exists() {
+        return Err(anyhow!("nothing to undo"));
+    }
+    Ok(serde_json::from_str(&fs::read_to_string(p)?)?)
+}
+
+pub fn clear_undo() -> Result<()> {
+    let p = undo_path();
+    if p.exists() {
+        fs::remove_file(p)?;
+    }
+    Ok(())
+}
+
+pub fn add(data: &mut ProjectData, task: Task) -> Result<()> {
+    let previous = data.clone();
+    data.tasks.push(task);
+    save_with_undo(data, &previous)
 }
 
 pub fn find_mut<'a>(data: &'a mut ProjectData, id: &str) -> Result<&'a mut Task> {
@@ -145,6 +181,56 @@ pub fn find<'a>(data: &'a ProjectData, id: &str) -> Result<&'a Task> {
             "ambiguous task id '{id}' matches {n} tasks; please provide more characters"
         )),
     }
+}
+
+pub fn delete_to_trash(data: &mut ProjectData, id: &str) -> Result<uuid::Uuid> {
+    let task_id = find(data, id)?.id;
+    let idx = data
+        .tasks
+        .iter()
+        .position(|t| t.id == task_id)
+        .expect("task found above");
+    let task = data.tasks.remove(idx);
+    data.trash.push(TrashEntry {
+        task,
+        deleted_at: chrono::Utc::now(),
+    });
+    Ok(task_id)
+}
+
+pub fn find_trash<'a>(data: &'a ProjectData, id: &str) -> Result<&'a TrashEntry> {
+    if let Ok(u) = uuid::Uuid::parse_str(id) {
+        if let Some(entry) = data.trash.iter().find(|e| e.task.id == u) {
+            return Ok(entry);
+        }
+        return Err(anyhow!("trashed task not found: {id}"));
+    }
+
+    let matches: Vec<&TrashEntry> = data
+        .trash
+        .iter()
+        .filter(|e| e.task.id.to_string().starts_with(id))
+        .collect();
+
+    match matches.len() {
+        0 => Err(anyhow!("trashed task not found: {id}")),
+        1 => Ok(matches[0]),
+        n => Err(anyhow!(
+            "ambiguous trashed task id '{id}' matches {n} tasks; please provide more characters"
+        )),
+    }
+}
+
+pub fn restore_from_trash(data: &mut ProjectData, id: &str) -> Result<uuid::Uuid> {
+    let task_id = find_trash(data, id)?.task.id;
+    let idx = data
+        .trash
+        .iter()
+        .position(|e| e.task.id == task_id)
+        .expect("trashed task found above");
+    let entry = data.trash.remove(idx);
+    data.tasks.push(entry.task);
+    Ok(task_id)
 }
 
 pub fn export_json(data: &ProjectData) -> Result<String> {

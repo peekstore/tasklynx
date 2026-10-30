@@ -26,6 +26,7 @@ pub fn run(data: &mut ProjectData) -> Result<()> {
     let mut active_col: usize = 0; // 0: Todo, 1: Doing, 2: Done
     let mut selected_idx: [usize; 3] = [0, 0, 0];
     let mut dirty = false;
+    let undo_base = data.clone();
 
     let statuses = [Status::Todo, Status::Doing, Status::Done];
 
@@ -292,7 +293,7 @@ pub fn run(data: &mut ProjectData) -> Result<()> {
     execute!(terminal.backend_mut(), LeaveAlternateScreen)?;
 
     if dirty {
-        store::save(data)?;
+        store::save_with_undo(data, &undo_base)?;
     }
 
     Ok(())

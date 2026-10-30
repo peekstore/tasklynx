@@ -74,8 +74,9 @@ async fn tasks(State(s): State<WebState>) -> Json<ProjectData> {
 
 async fn create(State(s): State<WebState>, Json(t): Json<Task>) -> Json<Task> {
     let mut d = s.data.lock().unwrap();
+    let previous = d.clone();
     d.tasks.push(t.clone());
-    let _ = store::save(&d);
+    let _ = store::save_with_undo(&d, &previous);
     Json(t)
 }
 
@@ -93,7 +94,11 @@ fn merge_task(existing: &mut Task, incoming: Task) -> (Task, Option<Task>) {
     existing.due = incoming.due;
     existing.branch = incoming.branch;
     existing.commit = incoming.commit;
+    existing.git_branch = incoming.git_branch;
+    existing.git_remote = incoming.git_remote;
+    existing.git_pr_url = incoming.git_pr_url;
     existing.parent = incoming.parent;
+    existing.blocked_by = incoming.blocked_by;
     existing.estimate_minutes = incoming.estimate_minutes;
     existing.repeat = incoming.repeat;
     existing.repeat_until = if existing.repeat == Repeat::None {
@@ -111,13 +116,14 @@ async fn update(
     Json(t): Json<Task>,
 ) -> impl IntoResponse {
     let mut d = s.data.lock().unwrap();
+    let previous = d.clone();
     match store::find_mut(&mut d, &id) {
         Ok(x) => {
             let (updated, next) = merge_task(x, t);
             if let Some(next) = next {
                 d.tasks.push(next);
             }
-            let _ = store::save(&d);
+            let _ = store::save_with_undo(&d, &previous);
             Json(updated).into_response()
         }
         Err(e) => (StatusCode::NOT_FOUND, e.to_string()).into_response(),
@@ -126,14 +132,13 @@ async fn update(
 
 async fn remove(Path(id): Path<String>, State(s): State<WebState>) -> impl IntoResponse {
     let mut d = s.data.lock().unwrap();
-    let before = d.tasks.len();
-    d.tasks
-        .retain(|t| t.id.to_string() != id && !t.id.to_string().starts_with(&id));
-    if d.tasks.len() == before {
-        (StatusCode::NOT_FOUND, format!("task not found: {id}")).into_response()
-    } else {
-        let _ = store::save(&d);
-        (StatusCode::OK, "deleted").into_response()
+    let previous = d.clone();
+    match store::delete_to_trash(&mut d, &id) {
+        Ok(_) => {
+            let _ = store::save_with_undo(&d, &previous);
+            (StatusCode::OK, "deleted").into_response()
+        }
+        Err(e) => (StatusCode::NOT_FOUND, e.to_string()).into_response(),
     }
 }
 

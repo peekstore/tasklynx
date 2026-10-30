@@ -4,3 +4,4 @@
 site/
 node_modules/
 package-lock.json
+PLAN.md

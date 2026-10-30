@@ -33,6 +33,23 @@ impl TestEnv {
         self.command().args(args).output().unwrap()
     }
 
+    fn command_in(&self, dir: &std::path::Path) -> Command {
+        let mut cmd = self.command();
+        cmd.current_dir(dir);
+        cmd
+    }
+
+    fn ok_in(&self, dir: &std::path::Path, args: &[&str]) -> String {
+        let out = self.command_in(dir).args(args).output().unwrap();
+        assert!(
+            out.status.success(),
+            "command {:?} failed:\n{}",
+            args,
+            String::from_utf8_lossy(&out.stderr)
+        );
+        String::from_utf8_lossy(&out.stdout).into_owned()
+    }
+
     fn ok(&self, args: &[&str]) -> String {
         let out = self.run(args);
         assert!(
@@ -75,6 +92,14 @@ fn help_and_version() {
         "complete",
         "reopen",
         "delete",
+        "undo",
+        "next",
+        "block",
+        "unblock",
+        "subtask",
+        "tree",
+        "trash",
+        "git",
         "edit",
         "duplicate",
         "search",
@@ -407,4 +432,152 @@ fn agenda_lists_upcoming_overdue_and_recurring() {
     assert!(out.contains("OVERDUE"), "{out}");
     assert!(out.contains("Upcoming task"), "{out}");
     assert!(out.contains("Old task"), "{out}");
+}
+
+#[test]
+fn next_prefers_unblocked_priority_tasks() {
+    let env = TestEnv::new("next");
+    env.ok(&["init"]);
+
+    env.ok(&["add", "Low overdue", "-P", "low", "--due", "2000-01-01"]);
+    let blocker = env
+        .ok(&["add", "Blocker task", "-P", "normal"])
+        .trim()
+        .to_string();
+    let blocked = env
+        .ok(&["add", "Blocked urgent", "-P", "urgent"])
+        .trim()
+        .to_string();
+
+    env.ok(&["block", &blocked[..8], "--by", &blocker[..8]]);
+
+    let next = env.ok(&["next"]);
+    assert!(next.contains("Blocker task"), "{next}");
+    assert!(!next.contains("Blocked urgent"), "{next}");
+
+    let explained = env.ok(&["next", "--explain"]);
+    assert!(explained.contains("priority=normal"), "{explained}");
+
+    let blocked_next = env.ok(&["next", "--include-blocked"]);
+    assert!(blocked_next.contains("Blocked urgent"), "{blocked_next}");
+
+    env.ok(&["complete", &blocker[..8]]);
+    let next = env.ok(&["next"]);
+    assert!(next.contains("Blocked urgent"), "{next}");
+}
+
+#[test]
+fn undo_reverts_last_mutation() {
+    let env = TestEnv::new("undo");
+    env.ok(&["init"]);
+    let id = env.ok(&["add", "Original title"]).trim().to_string();
+    let prefix = &id[..8];
+
+    env.ok(&["edit", prefix, "--title", "Changed title"]);
+    assert!(env.ok(&["list"]).contains("Changed title"));
+
+    env.ok(&["undo"]);
+    let list = env.ok(&["list"]);
+    assert!(list.contains("Original title"), "{list}");
+    assert!(!list.contains("Changed title"), "{list}");
+
+    env.ok(&["delete", prefix]);
+    assert!(!env.ok(&["list"]).contains("Original title"));
+    env.ok(&["undo"]);
+    assert!(env.ok(&["list"]).contains("Original title"));
+}
+
+#[test]
+fn trash_restore_and_purge() {
+    let env = TestEnv::new("trash");
+    env.ok(&["init"]);
+    let id = env.ok(&["add", "Trash me"]).trim().to_string();
+    let prefix = &id[..8];
+
+    env.ok(&["delete", prefix]);
+    assert!(!env.ok(&["list"]).contains("Trash me"));
+    assert!(env.ok(&["trash", "list"]).contains("Trash me"));
+
+    env.ok(&["trash", "restore", prefix]);
+    assert!(env.ok(&["list"]).contains("Trash me"));
+    assert!(env.ok(&["trash", "list"]).contains("trash is empty"));
+
+    env.ok(&["delete", prefix]);
+    env.ok(&["trash", "purge"]);
+    assert!(env.ok(&["trash", "list"]).contains("trash is empty"));
+}
+
+#[test]
+fn subtasks_tree_and_completion_guard() {
+    let env = TestEnv::new("subtasks");
+    env.ok(&["init"]);
+    let parent = env.ok(&["add", "Parent task"]).trim().to_string();
+    let parent_prefix = &parent[..8];
+    let child = env
+        .ok(&["subtask", parent_prefix, "Child task"])
+        .trim()
+        .to_string();
+    let child_prefix = &child[..8];
+
+    let tree = env.ok(&["tree"]);
+    assert!(tree.contains("Parent task"), "{tree}");
+    assert!(tree.contains("Child task"), "{tree}");
+
+    let err = env.fail(&["complete", parent_prefix]);
+    assert!(err.contains("open subtask"), "{err}");
+
+    env.ok(&["complete", child_prefix]);
+    env.ok(&["complete", parent_prefix]);
+    assert!(env.ok(&["stats"]).contains("done=2"));
+}
+
+#[test]
+fn git_status_and_commit_link() {
+    if Command::new("git").arg("--version").output().is_err() {
+        return;
+    }
+
+    let env = TestEnv::new("git");
+    env.ok(&["init"]);
+    let repo = env.root.join("repo");
+    std::fs::create_dir_all(&repo).unwrap();
+    let git = |args: &[&str]| {
+        let out = Command::new("git")
+            .current_dir(&repo)
+            .args(args)
+            .output()
+            .unwrap();
+        assert!(
+            out.status.success(),
+            "git {:?} failed:\n{}",
+            args,
+            String::from_utf8_lossy(&out.stderr)
+        );
+        out
+    };
+    git(&["init"]);
+    git(&["config", "user.email", "test@example.com"]);
+    git(&["config", "user.name", "Test User"]);
+    std::fs::write(repo.join("file.txt"), "hello\n").unwrap();
+    git(&["add", "."]);
+    git(&["commit", "-m", "initial"]);
+
+    let status = env.ok_in(&repo, &["git", "status"]);
+    assert!(status.contains("repo:"), "{status}");
+    assert!(status.contains("git branch:"), "{status}");
+    assert!(status.contains("head:"), "{status}");
+
+    let id = env
+        .ok_in(&repo, &["add", "Linked to commit"])
+        .trim()
+        .to_string();
+    let linked = env.ok_in(&repo, &["git", "link", &id[..8]]);
+    assert!(linked.contains("linked"), "{linked}");
+
+    let json = env.ok_in(&repo, &["export", "--format", "json"]);
+    assert!(json.contains("\"git_branch\""), "{json}");
+    assert!(json.contains("\"commit\": \""), "{json}");
+
+    let outside = env.ok_in(&env.root, &["git", "status"]);
+    assert!(outside.contains("not in a git repository"), "{outside}");
 }
