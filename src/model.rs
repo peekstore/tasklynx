@@ -139,6 +139,10 @@ pub struct Task {
     pub git_remote: Option<String>,
     #[serde(default)]
     pub git_pr_url: Option<String>,
+    #[serde(default)]
+    pub source_path: Option<String>,
+    #[serde(default)]
+    pub source_line: Option<u32>,
     pub parent: Option<Uuid>,
     #[serde(default)]
     pub blocked_by: Vec<Uuid>,
@@ -176,6 +180,8 @@ impl Task {
             git_branch: String::new(),
             git_remote: None,
             git_pr_url: None,
+            source_path: None,
+            source_line: None,
             parent: None,
             blocked_by: Vec::new(),
             estimate_minutes: None,
@@ -232,6 +238,8 @@ impl Task {
         next.due = Some(next_due);
         next.commit = None;
         next.git_pr_url = None;
+        next.source_path = None;
+        next.source_line = None;
         next.series_id = Some(self.series_id.unwrap_or(self.id));
         next.created_at = now;
         next.updated_at = now;
@@ -497,6 +505,8 @@ mod tests {
         assert_eq!(t.series_id, None);
         assert!(t.git_branch.is_empty());
         assert!(t.blocked_by.is_empty());
+        assert!(t.source_path.is_none());
+        assert!(t.source_line.is_none());
     }
 
     #[test]

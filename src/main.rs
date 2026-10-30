@@ -9,6 +9,7 @@ use anyhow::Result;
 use clap::{CommandFactory, Parser, Subcommand};
 use model::{local_due_date, Priority, Repeat, Status, Task};
 use std::path::PathBuf;
+use std::process::Command;
 
 #[derive(Parser)]
 #[command(
@@ -204,7 +205,40 @@ enum GitCmd {
         id: String,
         #[arg(long)]
         commit: Option<String>,
+        #[arg(long)]
+        pr: Option<String>,
     },
+    Sync {
+        #[arg(long, default_value_t = 100)]
+        limit: usize,
+    },
+    Scan {
+        #[arg(long)]
+        apply: bool,
+        #[arg(long, default_value_t = 100)]
+        limit: usize,
+        #[arg(short, long, default_value = "default")]
+        project: String,
+    },
+    Open {
+        id: String,
+        #[arg(long)]
+        print: bool,
+    },
+    Hook {
+        #[command(subcommand)]
+        action: HookCmd,
+    },
+    Activate {
+        id: String,
+    },
+    Deactivate,
+}
+
+#[derive(Subcommand)]
+enum HookCmd {
+    Install,
+    Uninstall,
 }
 
 #[derive(Subcommand)]
@@ -325,6 +359,201 @@ fn print_tree(
     for child in children {
         print_tree(data, child, depth + 1, seen);
     }
+}
+
+fn marker_in_line(line: &str) -> Option<(&'static str, usize, String)> {
+    let mut best: Option<(&'static str, usize, String)> = None;
+    for marker in ["TODO", "FIXME", "HACK"] {
+        let mut from = 0;
+        while let Some(relative) = line[from..].find(marker) {
+            let idx = from + relative;
+            let before = line[..idx].chars().next_back();
+            let after = line[idx + marker.len()..].chars().next();
+            let boundary =
+                |c: Option<char>| c.map_or(true, |ch| !ch.is_alphanumeric() && ch != '_');
+            if boundary(before) && boundary(after) {
+                let rest = line[idx + marker.len()..].trim_start();
+                let rest = rest.strip_prefix(':').unwrap_or(rest).trim().to_string();
+                if best
+                    .as_ref()
+                    .map_or(true, |(_, best_idx, _)| idx < *best_idx)
+                {
+                    best = Some((marker, idx, rest));
+                }
+                break;
+            }
+            from = idx + marker.len();
+        }
+    }
+    best
+}
+
+fn scan_repo(
+    data: &model::ProjectData,
+    info: &git::GitInfo,
+    project: &str,
+    limit: usize,
+) -> Vec<Task> {
+    let Some(files) = git::tracked_files() else {
+        return Vec::new();
+    };
+    let mut tasks = Vec::new();
+    for relative in files {
+        if tasks.len() >= limit {
+            break;
+        }
+        let path = info.root.join(&relative);
+        let Ok(metadata) = std::fs::metadata(&path) else {
+            continue;
+        };
+        if !metadata.is_file() || metadata.len() > 2 * 1024 * 1024 {
+            continue;
+        }
+        let Ok(bytes) = std::fs::read(&path) else {
+            continue;
+        };
+        if bytes.contains(&0) {
+            continue;
+        }
+        let text = String::from_utf8_lossy(&bytes);
+        let display_path = relative.to_string_lossy().replace('\\', "/");
+        for (index, line) in text.lines().enumerate() {
+            let Some((marker, _, comment)) = marker_in_line(line) else {
+                continue;
+            };
+            let line_number = u32::try_from(index + 1).unwrap_or(u32::MAX);
+            let already_found = data.tasks.iter().any(|task| {
+                task.source_path.as_deref() == Some(display_path.as_str())
+                    && task.source_line == Some(line_number)
+            });
+            if already_found {
+                continue;
+            }
+            let title = if comment.is_empty() {
+                format!("{marker} at {display_path}:{line_number}")
+            } else {
+                format!("{marker}: {comment}")
+            };
+            let mut task = Task::new(
+                title,
+                project.to_string(),
+                data.current_branch.clone(),
+                Priority::Normal,
+                Vec::new(),
+                None,
+            );
+            task.description = format!("{marker} in {display_path}:{line_number}\n{}", line.trim());
+            task.commit = info.commit.clone();
+            task.git_branch = info.branch.clone();
+            task.git_remote = info.remote.clone();
+            task.source_path = Some(display_path.clone());
+            task.source_line = Some(line_number);
+            tasks.push(task);
+            if tasks.len() >= limit {
+                break;
+            }
+        }
+    }
+    tasks
+}
+
+const HOOK_MARKER: &str = "# managed by tasklynx";
+const HOOK_SCRIPT: &str = r#"#!/bin/sh
+# managed by tasklynx
+task_id=$(git config --get tasklynx.taskId 2>/dev/null || true)
+[ -n "$task_id" ] || exit 0
+if grep -q '^Tasklynx-Id:' "$1"; then
+    exit 0
+fi
+printf '\nTasklynx-Id: %s\n' "$task_id" >> "$1"
+"#;
+
+fn install_git_hook(info: &git::GitInfo) -> Result<PathBuf> {
+    let hooks = info.hooks_dir();
+    std::fs::create_dir_all(&hooks)?;
+    let path = hooks.join("prepare-commit-msg");
+    if path.exists() {
+        let existing = std::fs::read_to_string(&path).unwrap_or_default();
+        if !existing.contains(HOOK_MARKER) {
+            anyhow::bail!(
+                "refusing to overwrite {}: hook was not installed by tasklynx",
+                path.display()
+            );
+        }
+    }
+    std::fs::write(&path, HOOK_SCRIPT)?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755))?;
+    }
+    Ok(path)
+}
+
+fn uninstall_git_hook(info: &git::GitInfo) -> Result<PathBuf> {
+    let path = info.hooks_dir().join("prepare-commit-msg");
+    if !path.exists() {
+        anyhow::bail!("no prepare-commit-msg hook installed");
+    }
+    let existing = std::fs::read_to_string(&path).unwrap_or_default();
+    if !existing.contains(HOOK_MARKER) {
+        anyhow::bail!(
+            "refusing to remove {}: hook was not installed by tasklynx",
+            path.display()
+        );
+    }
+    std::fs::remove_file(&path)?;
+    Ok(path)
+}
+
+fn commit_task_id(body: &str) -> Option<String> {
+    body.lines().find_map(|line| {
+        let (key, value) = line.split_once(':')?;
+        if !key.trim().eq_ignore_ascii_case("Tasklynx-Id") {
+            return None;
+        }
+        let value = value.trim();
+        if value.is_empty() {
+            None
+        } else {
+            Some(value.to_string())
+        }
+    })
+}
+
+#[cfg(target_os = "macos")]
+fn open_url(url: &str) -> Result<()> {
+    let status = Command::new("open").arg(url).status()?;
+    if !status.success() {
+        anyhow::bail!("failed to open {url}");
+    }
+    Ok(())
+}
+
+#[cfg(target_os = "windows")]
+fn open_url(url: &str) -> Result<()> {
+    let status = Command::new("cmd")
+        .args(["/C", "start", ""])
+        .arg(url)
+        .status()?;
+    if !status.success() {
+        anyhow::bail!("failed to open {url}");
+    }
+    Ok(())
+}
+
+#[cfg(all(unix, not(target_os = "macos")))]
+fn open_url(url: &str) -> Result<()> {
+    let status = Command::new("xdg-open").arg(url).status()?;
+    if !status.success() {
+        anyhow::bail!("failed to open {url}");
+    }
+    Ok(())
+}
+
+#[cfg(not(any(unix, windows)))]
+fn open_url(_url: &str) -> Result<()> {
+    anyhow::bail!("opening URLs is not supported on this platform");
 }
 
 #[tokio::main]
@@ -682,9 +911,14 @@ async fn main() -> Result<()> {
                 }
                 None => println!("not in a git repository"),
             },
-            GitCmd::Link { id, commit } => {
+            GitCmd::Link { id, commit, pr } => {
                 let info =
                     git::discover().ok_or_else(|| anyhow::anyhow!("not in a git repository"))?;
+                if let Some(pr) = &pr {
+                    if !pr.starts_with("http://") && !pr.starts_with("https://") {
+                        anyhow::bail!("--pr must be an http(s) URL");
+                    }
+                }
                 let commit = commit.or_else(|| info.commit.clone()).ok_or_else(|| {
                     anyhow::anyhow!("no commit to link; pass --commit or create a commit first")
                 })?;
@@ -695,11 +929,153 @@ async fn main() -> Result<()> {
                     t.commit = Some(commit.clone());
                     t.git_branch = info.branch.clone();
                     t.git_remote = info.remote.clone();
+                    if let Some(pr) = pr {
+                        t.git_pr_url = Some(pr);
+                    }
                     t.updated_at = chrono::Utc::now();
                     t.id.to_string()
                 };
                 store::save_with_undo(&data, &previous)?;
                 println!("linked {} to {} on {}", &tid[..8], commit, info.branch);
+            }
+            GitCmd::Sync { limit } => {
+                let info =
+                    git::discover().ok_or_else(|| anyhow::anyhow!("not in a git repository"))?;
+                let commits = git::recent_commits(limit).unwrap_or_default();
+                if commits.is_empty() {
+                    println!("no commits found");
+                } else {
+                    let _lock = store::StoreLock::acquire()?;
+                    let previous = data.clone();
+                    let mut linked = 0usize;
+                    let mut matched = 0usize;
+                    for commit in commits {
+                        let Some(task_id) = commit_task_id(&commit.body) else {
+                            continue;
+                        };
+                        matched += 1;
+                        let short = commit.sha.get(..12).unwrap_or(&commit.sha).to_string();
+                        let Ok(task) = store::find_mut(&mut data, &task_id) else {
+                            continue;
+                        };
+                        if task.commit.as_deref() == Some(short.as_str())
+                            && task.git_branch == info.branch
+                        {
+                            continue;
+                        }
+                        task.commit = Some(short);
+                        task.git_branch = info.branch.clone();
+                        task.git_remote = info.remote.clone();
+                        task.updated_at = chrono::Utc::now();
+                        linked += 1;
+                    }
+                    if linked > 0 {
+                        store::save_with_undo(&data, &previous)?;
+                        println!("linked {linked} commit(s)");
+                    } else if matched > 0 {
+                        println!("no new commit links");
+                    } else {
+                        println!("no matching Tasklynx-Id trailers");
+                    }
+                }
+            }
+            GitCmd::Scan {
+                apply,
+                limit,
+                project,
+            } => {
+                let info =
+                    git::discover().ok_or_else(|| anyhow::anyhow!("not in a git repository"))?;
+                let tasks = scan_repo(&data, &info, &project, limit);
+                if tasks.is_empty() {
+                    println!("no new TODO/FIXME/HACK comments found");
+                } else {
+                    for task in &tasks {
+                        println!(
+                            "{}:{}  {}",
+                            task.source_path.as_deref().unwrap_or("?"),
+                            task.source_line.unwrap_or(0),
+                            task.title
+                        );
+                    }
+                    if apply {
+                        let _lock = store::StoreLock::acquire()?;
+                        let count = tasks.len();
+                        let previous = data.clone();
+                        data.tasks.extend(tasks);
+                        store::save_with_undo(&data, &previous)?;
+                        println!("created {count} task(s)");
+                    } else {
+                        println!(
+                            "found {} item(s); run with --apply to create tasks",
+                            tasks.len()
+                        );
+                    }
+                }
+            }
+            GitCmd::Open { id, print } => {
+                let task = store::find(&data, &id)?;
+                let url = match task.git_pr_url.as_deref() {
+                    Some(url) => url.to_string(),
+                    None => {
+                        let commit = task.commit.as_deref().ok_or_else(|| {
+                            anyhow::anyhow!(
+                                "task has no commit or PR link; run `tx git link` first"
+                            )
+                        })?;
+                        let remote = task.git_remote.as_deref().ok_or_else(|| {
+                            anyhow::anyhow!("task has no Git remote; run `tx git link` first")
+                        })?;
+                        git::commit_url(remote, commit).ok_or_else(|| {
+                            anyhow::anyhow!("could not build a commit URL from remote '{remote}'")
+                        })?
+                    }
+                };
+                if print {
+                    println!("{url}");
+                } else {
+                    open_url(&url)?;
+                    println!("opened {url}");
+                }
+            }
+            GitCmd::Hook { action } => match action {
+                HookCmd::Install => {
+                    let info = git::discover()
+                        .ok_or_else(|| anyhow::anyhow!("not in a git repository"))?;
+                    let path = install_git_hook(&info)?;
+                    println!("installed hook: {}", path.display());
+                }
+                HookCmd::Uninstall => {
+                    let info = git::discover()
+                        .ok_or_else(|| anyhow::anyhow!("not in a git repository"))?;
+                    let path = uninstall_git_hook(&info)?;
+                    println!("removed hook: {}", path.display());
+                }
+            },
+            GitCmd::Activate { id } => {
+                let info =
+                    git::discover().ok_or_else(|| anyhow::anyhow!("not in a git repository"))?;
+                let task = store::find(&data, &id)?;
+                let full = task.id.to_string();
+                let short = full[..8].to_string();
+                let title = task.title.clone();
+                let status = Command::new("git")
+                    .current_dir(&info.root)
+                    .args(["config", "tasklynx.taskId", &full])
+                    .status()?;
+                if !status.success() {
+                    anyhow::bail!("failed to set git config tasklynx.taskId");
+                }
+                println!("active task: {short} {title}");
+            }
+            GitCmd::Deactivate => {
+                let info =
+                    git::discover().ok_or_else(|| anyhow::anyhow!("not in a git repository"))?;
+                let _ = Command::new("git")
+                    .current_dir(&info.root)
+                    .args(["config", "--unset", "tasklynx.taskId"])
+                    .output()?;
+                println!("deactivated");
             }
         },
         Cmd::Edit {

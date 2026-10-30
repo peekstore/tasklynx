@@ -189,7 +189,7 @@ tx export --format md > TASKS.md
 | `tx agenda` | Show upcoming, overdue, and recurring work |
 | `tx stats` | Show task and branch totals |
 | `tx branch <list\|create\|switch\|delete>` | Manage branches |
-| `tx git <status\|link>` | Inspect Git context and link commits |
+| `tx git ...` | Inspect Git context, link commits, scan TODOs, and manage commit hooks |
 | `tx export --format <json\|md>` | Export tasks |
 | `tx board` | Open the terminal Kanban board |
 | `tx web` | Start the web dashboard |

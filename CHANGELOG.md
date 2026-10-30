@@ -7,7 +7,11 @@
 - Added subtasks with `tx subtask` and tree rendering with `tx tree`.
 - Added `tx undo` plus recoverable deletes via `tx trash list|restore|purge`.
 - Added local Git integration with `tx git status` and `tx git link`.
-- Added Git metadata and blocker fields to the task schema with backward-compatible defaults.
+- Added `tx git sync` for linking tasks from `Tasklynx-Id` commit trailers.
+- Added `tx git scan` to turn TODO/FIXME/HACK comments into deduplicated tasks.
+- Added opt-in Git hooks with `tx git hook install|uninstall` and task activation.
+- Added `tx git open` for task commit and PR URLs, including `--print`.
+- Added Git metadata, source locations, and blocker fields to the task schema with backward-compatible defaults.
 
 ## 0.0.1-beta-4
 

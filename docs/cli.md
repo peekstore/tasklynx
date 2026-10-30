@@ -44,7 +44,13 @@ Running `tx` with no subcommand opens the terminal board.
 | `tx stats` | Show task and branch totals |
 | `tx branch` | Manage branches |
 | `tx git status` | Show Git and Tasklynx branch context |
-| `tx git link <id>` | Link a task to the current commit |
+| `tx git link <id>` | Link a task to a commit or PR |
+| `tx git sync` | Link tasks from commit trailers |
+| `tx git scan` | Find TODO/FIXME comments in tracked files |
+| `tx git open <id>` | Open a task commit or PR in the browser |
+| `tx git hook` | Install or remove the Tasklynx Git hook |
+| `tx git activate <id>` | Mark a task active for commit trailers |
+| `tx git deactivate` | Clear the active commit task |
 | `tx export` | Export tasks as JSON or Markdown |
 | `tx web` | Start the web dashboard |
 | `tx board` | Open the terminal Kanban board |
@@ -195,11 +201,44 @@ Deleting a task moves it to trash instead of removing it immediately. `tx undo` 
 tx git status
 tx git link <id>
 tx git link <id> --commit <sha>
+tx git link <id> --pr https://github.com/owner/repo/pull/42
+tx git open <id>
+tx git open <id> --print
 ```
 
-`tx git status` reports the repository root, Git branch, HEAD, remote, and open tasks on the current Tasklynx branch. `tx git link` stores the commit, Git branch, and remote URL on the task. When `--commit` is omitted, `HEAD` is used.
+`tx git status` reports the repository root, Git branch, HEAD, remote, and open tasks on the current Tasklynx branch. `tx git link` stores the commit, Git branch, and remote URL on the task. When `--commit` is omitted, `HEAD` is used. `--pr` stores a pull request or merge request URL.
 
-Git integration only reads local repository metadata. It does not push, rewrite history, or contact a remote.
+`tx git open` opens the task's PR URL when present, otherwise its commit URL. Use `--print` to print the URL without launching a browser.
+
+### Scanning code comments
+
+```bash
+tx git scan
+tx git scan --apply
+tx git scan --apply --project backend --limit 50
+```
+
+`tx git scan` searches tracked files for `TODO`, `FIXME`, and `HACK` comments. Preview mode prints file paths and line numbers without changing the store. `--apply` creates tasks with the source path, line number, Git commit, and branch attached. Already-scanned locations are skipped, so rerunning the command is safe.
+
+### Commit trailers and hooks
+
+```bash
+tx git activate <id>
+tx git hook install
+git commit -m "Implement authentication"
+tx git sync
+git commit -m "More work"
+tx git deactivate
+tx git hook uninstall
+```
+
+- `tx git activate` stores the task ID in the repository's local Git config.
+- `tx git hook install` installs an opt-in `prepare-commit-msg` hook that appends a `Tasklynx-Id: <uuid>` trailer when a task is active.
+- `tx git sync` scans recent commits for that trailer and links matching tasks to the commit.
+- `tx git deactivate` clears the active task.
+- `tx git hook uninstall` removes only a hook installed by Tasklynx.
+
+Tasklynx refuses to overwrite or remove hooks it did not install. Git integration only reads local repository metadata and updates local task data. It does not push, rewrite history, or contact a remote.
 
 ## Branches
 

@@ -50,6 +50,16 @@ impl TestEnv {
         String::from_utf8_lossy(&out.stdout).into_owned()
     }
 
+    fn fail_in(&self, dir: &std::path::Path, args: &[&str]) -> String {
+        let out = self.command_in(dir).args(args).output().unwrap();
+        assert!(
+            !out.status.success(),
+            "command {:?} unexpectedly succeeded",
+            args
+        );
+        String::from_utf8_lossy(&out.stderr).into_owned()
+    }
+
     fn ok(&self, args: &[&str]) -> String {
         let out = self.run(args);
         assert!(
@@ -580,4 +590,242 @@ fn git_status_and_commit_link() {
 
     let outside = env.ok_in(&env.root, &["git", "status"]);
     assert!(outside.contains("not in a git repository"), "{outside}");
+}
+
+fn git_available() -> bool {
+    Command::new("git")
+        .arg("--version")
+        .output()
+        .map(|out| out.status.success())
+        .unwrap_or(false)
+}
+
+fn git_ok(dir: &std::path::Path, args: &[&str]) -> String {
+    let out = Command::new("git")
+        .current_dir(dir)
+        .args(args)
+        .output()
+        .unwrap();
+    assert!(
+        out.status.success(),
+        "git {:?} failed:\n{}",
+        args,
+        String::from_utf8_lossy(&out.stderr)
+    );
+    String::from_utf8_lossy(&out.stdout).into_owned()
+}
+
+fn init_git_repo(dir: &std::path::Path) {
+    std::fs::create_dir_all(dir).unwrap();
+    git_ok(dir, &["init", "-q"]);
+    git_ok(dir, &["config", "user.email", "test@example.com"]);
+    git_ok(dir, &["config", "user.name", "Test User"]);
+    git_ok(dir, &["config", "commit.gpgsign", "false"]);
+    std::fs::write(dir.join("README.md"), "initial\n").unwrap();
+    git_ok(dir, &["add", "."]);
+    git_ok(dir, &["commit", "-qm", "initial"]);
+}
+
+#[test]
+fn git_help_lists_new_commands() {
+    let env = TestEnv::new("git-help");
+    let help = env.ok(&["git", "--help"]);
+    for cmd in [
+        "status",
+        "link",
+        "sync",
+        "scan",
+        "open",
+        "hook",
+        "activate",
+        "deactivate",
+    ] {
+        assert!(help.contains(cmd), "git help is missing {cmd}: {help}");
+    }
+    let hook_help = env.ok(&["git", "hook", "--help"]);
+    assert!(hook_help.contains("install"), "{hook_help}");
+    assert!(hook_help.contains("uninstall"), "{hook_help}");
+}
+
+#[test]
+fn git_scan_previews_applies_and_dedupes() {
+    if !git_available() {
+        return;
+    }
+
+    let env = TestEnv::new("git-scan");
+    env.ok(&["init"]);
+    let repo = env.root.join("scan-repo");
+    init_git_repo(&repo);
+    std::fs::write(
+        repo.join("src.rs"),
+        "fn main() {}\n// TODO: implement auth\n// FIXME: handle errors\n",
+    )
+    .unwrap();
+    git_ok(&repo, &["add", "."]);
+    git_ok(&repo, &["commit", "-qm", "add todos"]);
+
+    let preview = env.ok_in(&repo, &["git", "scan"]);
+    assert!(preview.contains("src.rs:2"), "{preview}");
+    assert!(preview.contains("TODO: implement auth"), "{preview}");
+    assert!(preview.contains("FIXME: handle errors"), "{preview}");
+    assert!(preview.contains("found 2 item(s)"), "{preview}");
+    assert!(!env.ok_in(&repo, &["list"]).contains("implement auth"));
+
+    let applied = env.ok_in(&repo, &["git", "scan", "--apply", "--project", "backend"]);
+    assert!(applied.contains("created 2 task(s)"), "{applied}");
+
+    let list = env.ok_in(&repo, &["list", "--project", "backend"]);
+    assert!(list.contains("TODO: implement auth"), "{list}");
+    assert!(list.contains("FIXME: handle errors"), "{list}");
+
+    let json = env.ok_in(&repo, &["export", "--format", "json"]);
+    assert!(json.contains("\"source_path\": \"src.rs\""), "{json}");
+    assert!(json.contains("\"source_line\": 2"), "{json}");
+    assert!(json.contains("\"git_branch\": \""), "{json}");
+
+    let again = env.ok_in(&repo, &["git", "scan", "--apply"]);
+    assert!(
+        again.contains("no new TODO/FIXME/HACK comments found"),
+        "{again}"
+    );
+    assert!(env.ok_in(&repo, &["stats"]).contains("tasks=2"));
+}
+
+#[test]
+fn git_hook_activate_sync_and_uninstall() {
+    if !git_available() {
+        return;
+    }
+
+    let env = TestEnv::new("git-hook");
+    env.ok(&["init"]);
+    let repo = env.root.join("hook-repo");
+    init_git_repo(&repo);
+    let id = env
+        .ok_in(&repo, &["add", "Hook linked task"])
+        .trim()
+        .to_string();
+
+    let activated = env.ok_in(&repo, &["git", "activate", &id[..8]]);
+    assert!(activated.contains("active task"), "{activated}");
+
+    let installed = env.ok_in(&repo, &["git", "hook", "install"]);
+    assert!(installed.contains("installed hook"), "{installed}");
+    let hook = repo.join(".git").join("hooks").join("prepare-commit-msg");
+    assert!(hook.exists());
+    let hook_body = std::fs::read_to_string(&hook).unwrap();
+    assert!(hook_body.contains("managed by tasklynx"), "{hook_body}");
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let mode = std::fs::metadata(&hook).unwrap().permissions().mode();
+        assert_ne!(mode & 0o111, 0, "hook should be executable");
+    }
+
+    std::fs::write(repo.join("work.txt"), "work\n").unwrap();
+    git_ok(&repo, &["add", "."]);
+    git_ok(&repo, &["commit", "-qm", "work on hook task"]);
+    let body = git_ok(&repo, &["log", "-1", "--format=%B"]);
+    assert!(body.contains("Tasklynx-Id:"), "{body}");
+    assert!(body.contains(&id), "{body}");
+
+    let synced = env.ok_in(&repo, &["git", "sync"]);
+    assert!(synced.contains("linked 1 commit(s)"), "{synced}");
+    let json = env.ok_in(&repo, &["export", "--format", "json"]);
+    assert!(json.contains("\"commit\": \""), "{json}");
+    assert!(json.contains("\"git_branch\": \""), "{json}");
+
+    let deactivated = env.ok_in(&repo, &["git", "deactivate"]);
+    assert!(deactivated.contains("deactivated"), "{deactivated}");
+    let config = Command::new("git")
+        .current_dir(&repo)
+        .args(["config", "--get", "tasklynx.taskId"])
+        .output()
+        .unwrap();
+    assert!(!config.status.success());
+
+    let uninstalled = env.ok_in(&repo, &["git", "hook", "uninstall"]);
+    assert!(uninstalled.contains("removed hook"), "{uninstalled}");
+    assert!(!hook.exists());
+
+    std::fs::write(&hook, "#!/bin/sh\nexit 0\n").unwrap();
+    let err = env.fail_in(&repo, &["git", "hook", "install"]);
+    assert!(err.contains("refusing to overwrite"), "{err}");
+    let err = env.fail_in(&repo, &["git", "hook", "uninstall"]);
+    assert!(err.contains("refusing to remove"), "{err}");
+}
+
+#[test]
+fn git_open_prints_commit_and_pr_urls() {
+    if !git_available() {
+        return;
+    }
+
+    let env = TestEnv::new("git-open");
+    env.ok(&["init"]);
+    let repo = env.root.join("open-repo");
+    init_git_repo(&repo);
+    git_ok(
+        &repo,
+        &["remote", "add", "origin", "git@github.com:owner/repo.git"],
+    );
+    let id = env
+        .ok_in(&repo, &["add", "Open linked task"])
+        .trim()
+        .to_string();
+
+    let linked = env.ok_in(&repo, &["git", "link", &id[..8]]);
+    assert!(linked.contains("linked"), "{linked}");
+    let url = env
+        .ok_in(&repo, &["git", "open", &id[..8], "--print"])
+        .trim()
+        .to_string();
+    assert!(
+        url.starts_with("https://github.com/owner/repo/commit/"),
+        "{url}"
+    );
+
+    let pr = "https://github.com/owner/repo/pull/7";
+    env.ok_in(&repo, &["git", "link", &id[..8], "--pr", pr]);
+    let pr_url = env
+        .ok_in(&repo, &["git", "open", &id[..8], "--print"])
+        .trim()
+        .to_string();
+    assert_eq!(pr_url, pr);
+
+    let err = env.fail_in(&repo, &["git", "link", &id[..8], "--pr", "ftp://bad"]);
+    assert!(err.contains("--pr must be an http(s) URL"), "{err}");
+
+    let unlinked = env
+        .ok_in(&repo, &["add", "Nothing linked"])
+        .trim()
+        .to_string();
+    let err = env.fail_in(&repo, &["git", "open", &unlinked[..8], "--print"]);
+    assert!(err.contains("task has no commit or PR link"), "{err}");
+}
+
+#[test]
+fn git_scan_from_subdirectory_uses_repo_relative_paths() {
+    if !git_available() {
+        return;
+    }
+
+    let env = TestEnv::new("git-scan-subdir");
+    env.ok(&["init"]);
+    let repo = env.root.join("scan-subdir-repo");
+    init_git_repo(&repo);
+    let nested = repo.join("nested");
+    std::fs::create_dir_all(&nested).unwrap();
+    std::fs::write(nested.join("nested.rs"), "// TODO: nested task\n").unwrap();
+    git_ok(&repo, &["add", "."]);
+    git_ok(&repo, &["commit", "-qm", "add nested todo"]);
+
+    let applied = env.ok_in(&nested, &["git", "scan", "--apply"]);
+    assert!(applied.contains("nested/nested.rs:1"), "{applied}");
+    let json = env.ok_in(&nested, &["export", "--format", "json"]);
+    assert!(
+        json.contains("\"source_path\": \"nested/nested.rs\""),
+        "{json}"
+    );
 }
