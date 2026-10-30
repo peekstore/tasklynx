@@ -6,7 +6,7 @@ mod web;
 
 use anyhow::Result;
 use clap::{CommandFactory, Parser, Subcommand};
-use model::{local_due_date, Priority, Task};
+use model::{local_due_date, Priority, Repeat, Task};
 use std::path::PathBuf;
 
 #[derive(Parser)]
@@ -40,6 +40,10 @@ enum Cmd {
         estimate: Option<u32>,
         #[arg(long)]
         commit: Option<String>,
+        #[arg(long)]
+        repeat: Option<String>,
+        #[arg(long)]
+        repeat_until: Option<String>,
     },
     List {
         #[arg(long)]
@@ -85,6 +89,10 @@ enum Cmd {
         add_tag: Vec<String>,
         #[arg(long)]
         remove_tag: Vec<String>,
+        #[arg(long)]
+        repeat: Option<String>,
+        #[arg(long)]
+        repeat_until: Option<String>,
     },
     Duplicate {
         id: String,
@@ -93,6 +101,10 @@ enum Cmd {
         query: String,
     },
     Today,
+    Agenda {
+        #[arg(long, default_value_t = 7)]
+        days: u32,
+    },
     Stats,
     Branch {
         #[command(subcommand)]
@@ -165,6 +177,19 @@ fn priority(s: &str) -> Priority {
     }
 }
 
+fn parse_repeat(s: &str) -> Result<Repeat> {
+    match s.to_lowercase().as_str() {
+        "none" | "off" => Ok(Repeat::None),
+        "daily" | "day" => Ok(Repeat::Daily),
+        "weekly" | "week" => Ok(Repeat::Weekly),
+        "monthly" | "month" => Ok(Repeat::Monthly),
+        "yearly" | "year" | "annual" => Ok(Repeat::Yearly),
+        _ => anyhow::bail!(
+            "invalid repeat value '{s}': expected none, daily, weekly, monthly, or yearly"
+        ),
+    }
+}
+
 #[tokio::main]
 async fn main() -> Result<()> {
     let cli = Cli::parse();
@@ -187,9 +212,19 @@ async fn main() -> Result<()> {
             description,
             estimate,
             commit,
+            repeat,
+            repeat_until,
         } => {
             let _lock = store::StoreLock::acquire()?;
             let due = due.map(|d| local_due_date(&d)).transpose()?;
+            let repeat = match repeat {
+                Some(v) => parse_repeat(&v)?,
+                None => Repeat::None,
+            };
+            let repeat_until = repeat_until.map(|d| local_due_date(&d)).transpose()?;
+            if repeat == Repeat::None && repeat_until.is_some() {
+                anyhow::bail!("--repeat-until requires --repeat");
+            }
             let mut t = Task::new(
                 title,
                 project,
@@ -203,6 +238,8 @@ async fn main() -> Result<()> {
             }
             t.estimate_minutes = estimate;
             t.commit = commit;
+            t.repeat = repeat;
+            t.repeat_until = repeat_until;
 
             let id = t.id.to_string();
             store::add(&mut data, t)?;
@@ -234,25 +271,44 @@ async fn main() -> Result<()> {
                 }) {
                     continue;
                 }
+                let recur = if t.repeat == Repeat::None {
+                    String::new()
+                } else {
+                    format!(" ↻ {}", t.repeat)
+                };
                 println!(
-                    "{}  {:7} {:7} {:12} {}",
+                    "{}  {:7} {:7} {:12} {}{}",
                     &t.id.to_string()[..8],
                     t.status,
                     t.priority,
                     t.project,
-                    t.title
+                    t.title,
+                    recur
                 );
             }
         }
         Cmd::Complete { id } => {
             let _lock = store::StoreLock::acquire()?;
-            let tid = store::find_mut(&mut data, &id)?.id.to_string();
-            {
+            let tid = store::find(&data, &id)?.id.to_string();
+            let next = {
                 let t = store::find_mut(&mut data, &id)?;
+                let was_done = t.status == model::Status::Done;
                 t.complete();
+                if was_done {
+                    None
+                } else {
+                    t.next_occurrence()
+                }
+            };
+            if let Some(next) = next {
+                let nid = next.id.to_string();
+                data.tasks.push(next);
+                store::save(&data)?;
+                println!("done {}; next {}", &tid[..8], &nid[..8]);
+            } else {
+                store::save(&data)?;
+                println!("done {}", &tid[..8]);
             }
-            store::save(&data)?;
-            println!("done {}", &tid[..8]);
         }
         Cmd::Reopen { id } => {
             let _lock = store::StoreLock::acquire()?;
@@ -295,6 +351,8 @@ async fn main() -> Result<()> {
             commit,
             add_tag,
             remove_tag,
+            repeat,
+            repeat_until,
         } => {
             let _lock = store::StoreLock::acquire()?;
             let tid = store::find_mut(&mut data, &id)?.id.to_string();
@@ -311,6 +369,18 @@ async fn main() -> Result<()> {
                 }
                 if let Some(v) = due {
                     t.due = Some(local_due_date(&v)?);
+                }
+                if let Some(v) = repeat {
+                    t.repeat = parse_repeat(&v)?;
+                    if t.repeat == Repeat::None {
+                        t.repeat_until = None;
+                    }
+                }
+                if let Some(v) = repeat_until {
+                    if t.repeat == Repeat::None {
+                        anyhow::bail!("--repeat-until requires a repeat value");
+                    }
+                    t.repeat_until = Some(local_due_date(&v)?);
                 }
                 if let Some(v) = project {
                     t.project = v;
@@ -375,6 +445,37 @@ async fn main() -> Result<()> {
                 {
                     println!("TODAY {} {}", &t.id.to_string()[..8], t.title)
                 }
+            }
+        }
+        Cmd::Agenda { days } => {
+            let now = chrono::Utc::now();
+            let horizon = now + chrono::Duration::days(i64::from(days));
+            let mut entries: Vec<(chrono::DateTime<chrono::Utc>, &str, &Task)> = Vec::new();
+            for t in &data.tasks {
+                if let Some(due) = t.due {
+                    if t.status != model::Status::Done && due <= horizon {
+                        let label = if due < now { "OVERDUE" } else { "UPCOMING" };
+                        entries.push((due, label, t));
+                    }
+                }
+                if t.repeat != Repeat::None {
+                    if let Some(next) = t.next_due_date() {
+                        if next >= now && next <= horizon {
+                            entries.push((next, "NEXT", t));
+                        }
+                    }
+                }
+            }
+            entries.sort_by_key(|(due, _, _)| *due);
+            for (due, label, t) in entries {
+                let date = due.with_timezone(&chrono::Local).format("%Y-%m-%d");
+                println!(
+                    "{:8} {}  {}  {}",
+                    label,
+                    &t.id.to_string()[..8],
+                    date,
+                    t.title
+                );
             }
         }
         Cmd::Stats => {

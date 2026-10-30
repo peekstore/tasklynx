@@ -1,3 +1,4 @@
+use chrono::{Duration, Local};
 use std::path::PathBuf;
 use std::process::{Command, Output};
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -78,6 +79,7 @@ fn help_and_version() {
         "duplicate",
         "search",
         "today",
+        "agenda",
         "stats",
         "branch",
         "export",
@@ -298,4 +300,111 @@ fn version_matches_dot_version() {
         .trim()
         .to_string();
     assert_eq!(dot_version, env!("CARGO_PKG_VERSION"));
+}
+
+#[test]
+fn recurring_task_completion_creates_next_occurrence() {
+    let env = TestEnv::new("recurring");
+    env.ok(&["init"]);
+    let id = env
+        .ok(&[
+            "add",
+            "Daily standup",
+            "--due",
+            "2026-01-01",
+            "--repeat",
+            "daily",
+        ])
+        .trim()
+        .to_string();
+    let prefix = &id[..8];
+
+    assert!(env.ok(&["list"]).contains("daily"));
+
+    let first = env.ok(&["complete", prefix]);
+    assert!(first.contains("next"), "{first}");
+    let next_id = first.split("next ").nth(1).unwrap().trim().to_string();
+    assert_eq!(next_id.len(), 8);
+    assert!(env
+        .ok(&["list", "--status", "todo"])
+        .contains("Daily standup"));
+
+    let again = env.ok(&["complete", prefix]);
+    assert!(!again.contains("next"), "{again}");
+    assert!(env.ok(&["stats"]).contains("tasks=2"));
+
+    let second = env.ok(&["complete", &next_id]);
+    assert!(second.contains("next"), "{second}");
+    assert!(env.ok(&["stats"]).contains("tasks=3"));
+}
+
+#[test]
+fn repeat_until_stops_follow_up_generation() {
+    let env = TestEnv::new("repeat-until");
+    env.ok(&["init"]);
+    let id = env
+        .ok(&[
+            "add",
+            "Limited series",
+            "--due",
+            "2026-01-01",
+            "--repeat",
+            "daily",
+            "--repeat-until",
+            "2026-01-01",
+        ])
+        .trim()
+        .to_string();
+
+    let out = env.ok(&["complete", &id[..8]]);
+    assert!(!out.contains("next"), "{out}");
+    assert!(env.ok(&["stats"]).contains("tasks=1"));
+}
+
+#[test]
+fn edit_can_set_and_clear_recurrence() {
+    let env = TestEnv::new("edit-repeat");
+    env.ok(&["init"]);
+    let id = env.ok(&["add", "Repeat edit"]).trim().to_string();
+    let prefix = &id[..8];
+
+    env.ok(&["edit", prefix, "--repeat", "weekly"]);
+    assert!(env.ok(&["list"]).contains("↻ weekly"));
+
+    env.ok(&["edit", prefix, "--repeat", "none"]);
+    assert!(!env.ok(&["list"]).contains("↻"));
+}
+
+#[test]
+fn invalid_repeat_fails() {
+    let env = TestEnv::new("bad-repeat");
+    env.ok(&["init"]);
+    let err = env.fail(&["add", "Bad repeat", "--repeat", "hourly"]);
+    assert!(err.contains("invalid repeat"), "{err}");
+}
+
+#[test]
+fn agenda_lists_upcoming_overdue_and_recurring() {
+    let env = TestEnv::new("agenda");
+    env.ok(&["init"]);
+
+    let due = (Local::now().date_naive() + Duration::days(2))
+        .format("%Y-%m-%d")
+        .to_string();
+    env.ok(&[
+        "add",
+        "Upcoming task",
+        "--due",
+        due.as_str(),
+        "--repeat",
+        "daily",
+    ]);
+    env.ok(&["add", "Old task", "--due", "2000-01-01"]);
+
+    let out = env.ok(&["agenda", "--days", "7"]);
+    assert!(out.contains("UPCOMING"), "{out}");
+    assert!(out.contains("NEXT"), "{out}");
+    assert!(out.contains("OVERDUE"), "{out}");
+    assert!(out.contains("Upcoming task"), "{out}");
+    assert!(out.contains("Old task"), "{out}");
 }

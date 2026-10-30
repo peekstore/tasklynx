@@ -71,7 +71,6 @@ impl std::fmt::Display for Repeat {
     }
 }
 impl Repeat {
-    #[allow(dead_code)]
     pub fn next_after(self, base: DateTime<Utc>) -> Option<DateTime<Utc>> {
         let local = base.with_timezone(&Local);
         let date = local.date_naive();
@@ -91,7 +90,6 @@ impl Repeat {
     }
 }
 
-#[allow(dead_code)]
 fn add_months_clamped(date: NaiveDate, months: u32) -> NaiveDate {
     let total = date.month0() + months;
     let year = date.year() + (total / 12) as i32;
@@ -100,7 +98,6 @@ fn add_months_clamped(date: NaiveDate, months: u32) -> NaiveDate {
     NaiveDate::from_ymd_opt(year, month, day).expect("clamped date is valid")
 }
 
-#[allow(dead_code)]
 fn days_in_month(year: i32, month: u32) -> u32 {
     let first = NaiveDate::from_ymd_opt(year, month, 1).expect("valid month");
     let next = if month == 12 {
@@ -180,14 +177,12 @@ impl Task {
         self.completed_at = Some(Utc::now());
         self.updated_at = Utc::now();
     }
-    #[allow(dead_code)]
     pub fn next_due_date(&self) -> Option<DateTime<Utc>> {
         let base = self
             .due
             .unwrap_or_else(|| local_end_of_day(Local::now().date_naive()));
         self.repeat.next_after(base)
     }
-    #[allow(dead_code)]
     pub fn next_occurrence(&self) -> Option<Task> {
         let next_due = self.next_due_date()?;
         if self.repeat_until.is_some_and(|until| next_due > until) {
