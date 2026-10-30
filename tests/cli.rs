@@ -110,6 +110,7 @@ fn help_and_version() {
         "tree",
         "trash",
         "git",
+        "ai",
         "edit",
         "duplicate",
         "search",
@@ -828,4 +829,194 @@ fn git_scan_from_subdirectory_uses_repo_relative_paths() {
         json.contains("\"source_path\": \"nested/nested.rs\""),
         "{json}"
     );
+}
+
+#[test]
+fn ai_commands_available_offline() {
+    let env = TestEnv::new("ai-offline");
+    env.ok(&["init"]);
+
+    let help = env.ok(&["ai", "--help"]);
+    for command in ["plan", "breakdown", "doctor"] {
+        assert!(help.contains(command), "ai help is missing {command}");
+    }
+    let plan_help = env.ok(&["ai", "plan", "--help"]);
+    for flag in ["--apply", "--project", "--limit", "--no-description"] {
+        assert!(plan_help.contains(flag), "ai plan help is missing {flag}");
+    }
+    let breakdown_help = env.ok(&["ai", "breakdown", "--help"]);
+    for flag in ["--apply", "--limit", "--no-description"] {
+        assert!(
+            breakdown_help.contains(flag),
+            "ai breakdown help is missing {flag}"
+        );
+    }
+
+    let config = env.ok(&["config", "show"]);
+    assert!(config.contains("[ai]"), "{config}");
+    assert!(config.contains("provider = \"none\""), "{config}");
+
+    let doctor = env.ok(&["ai", "doctor"]);
+    assert!(doctor.contains("provider: none"), "{doctor}");
+    assert!(doctor.contains("offline"), "{doctor}");
+
+    let id = env.ok(&["add", "Parent task"]).trim().to_string();
+    let prefix = &id[..8];
+    let error = env.fail(&["ai", "plan", "Ship the feature"]);
+    assert!(error.contains("AI provider is not configured"), "{error}");
+    let error = env.fail(&["ai", "breakdown", prefix]);
+    assert!(error.contains("AI provider is not configured"), "{error}");
+}
+
+fn write_ai_config(env: &TestEnv, endpoint: &str) {
+    let dir = env.root.join("config").join("peekstore").join("tasklynx");
+    std::fs::create_dir_all(&dir).unwrap();
+    std::fs::write(
+        dir.join("config.toml"),
+        format!(
+            "[ai]\nprovider = \"ollama\"\nendpoint = \"{endpoint}\"\nmodel = \"fixture\"\nmax_context_tasks = 5\n"
+        ),
+    )
+    .unwrap();
+}
+
+#[cfg(feature = "ai")]
+fn mock_ollama(response: &str) -> (String, std::thread::JoinHandle<()>) {
+    use std::io::{Read, Write};
+
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let address = listener.local_addr().unwrap();
+    let payload = serde_json::json!({ "response": response }).to_string();
+    let handle = std::thread::spawn(move || {
+        let (mut stream, _) = listener.accept().unwrap();
+        stream
+            .set_read_timeout(Some(std::time::Duration::from_secs(2)))
+            .unwrap();
+        let mut request = Vec::new();
+        let mut buffer = [0u8; 4096];
+        loop {
+            let read = stream.read(&mut buffer).unwrap_or(0);
+            if read == 0 {
+                break;
+            }
+            request.extend_from_slice(&buffer[..read]);
+            if let Some(end) = request.windows(4).position(|window| window == b"\r\n\r\n") {
+                let headers = String::from_utf8_lossy(&request[..end]);
+                let body_length = headers
+                    .lines()
+                    .find_map(|line| {
+                        let (key, value) = line.split_once(':')?;
+                        if key.eq_ignore_ascii_case("content-length") {
+                            value.trim().parse::<usize>().ok()
+                        } else {
+                            None
+                        }
+                    })
+                    .unwrap_or(0);
+                if request.len() >= end + 4 + body_length {
+                    break;
+                }
+            }
+        }
+        let body = payload.as_bytes();
+        write!(
+            stream,
+            "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+            body.len()
+        )
+        .unwrap();
+        stream.write_all(body).unwrap();
+    });
+    (format!("http://{address}"), handle)
+}
+
+#[cfg(not(feature = "ai"))]
+#[test]
+fn ai_network_requires_ai_feature() {
+    let env = TestEnv::new("ai-no-feature");
+    env.ok(&["init"]);
+    write_ai_config(&env, "http://127.0.0.1:9");
+    let error = env.fail(&["ai", "doctor"]);
+    assert!(error.contains("AI networking is disabled"), "{error}");
+}
+
+#[cfg(feature = "ai")]
+#[test]
+fn ai_plan_and_breakdown_preview_and_apply() {
+    let env = TestEnv::new("ai-mock");
+    env.ok(&["init"]);
+
+    let plan_response = serde_json::json!({
+        "project": "ai",
+        "tasks": [
+            {"title": "Design schema", "priority": "high", "tags": ["db"]},
+            {"title": "Build endpoint", "depends_on": [0]}
+        ]
+    })
+    .to_string();
+
+    let (endpoint, handle) = mock_ollama(&plan_response);
+    write_ai_config(&env, &endpoint);
+    let preview = env.ok(&["ai", "plan", "Ship the API", "--limit", "5"]);
+    assert!(preview.contains("preview: 2 task(s)"), "{preview}");
+    assert!(preview.contains("Design schema"), "{preview}");
+    assert!(!env.ok(&["list"]).contains("Design schema"));
+    handle.join().unwrap();
+
+    let (endpoint, handle) = mock_ollama(&plan_response);
+    write_ai_config(&env, &endpoint);
+    let applied = env.ok(&["ai", "plan", "Ship the API", "--apply", "--limit", "5"]);
+    assert!(applied.contains("created 2 task(s)"), "{applied}");
+    handle.join().unwrap();
+
+    let list = env.ok(&["list", "--project", "ai"]);
+    assert!(list.contains("Design schema"), "{list}");
+    assert!(list.contains("Build endpoint"), "{list}");
+    let json = env.ok(&["export", "--format", "json"]);
+    let data: serde_json::Value = serde_json::from_str(&json).unwrap();
+    let endpoint_task = data["tasks"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|task| task["title"] == "Build endpoint")
+        .unwrap();
+    assert_eq!(endpoint_task["blocked_by"].as_array().unwrap().len(), 1);
+    let parent = data["tasks"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|task| task["title"] == "Design schema")
+        .unwrap();
+    let parent_id = parent["id"].as_str().unwrap().to_string();
+
+    let breakdown_response = serde_json::json!({
+        "tasks": [
+            {"title": "Write migration"},
+            {"title": "Add tests", "depends_on": [0]}
+        ]
+    })
+    .to_string();
+    let (endpoint, handle) = mock_ollama(&breakdown_response);
+    write_ai_config(&env, &endpoint);
+    let preview = env.ok(&["ai", "breakdown", &parent_id]);
+    assert!(preview.contains("preview: 2 task(s)"), "{preview}");
+    assert!(!env
+        .ok(&["tree", &parent_id[..8]])
+        .contains("Write migration"));
+    handle.join().unwrap();
+
+    let (endpoint, handle) = mock_ollama(&breakdown_response);
+    write_ai_config(&env, &endpoint);
+    let applied = env.ok(&["ai", "breakdown", &parent_id, "--apply"]);
+    assert!(applied.contains("created 2 subtask(s)"), "{applied}");
+    handle.join().unwrap();
+
+    let tree = env.ok(&["tree", &parent_id[..8]]);
+    assert!(tree.contains("Write migration"), "{tree}");
+    assert!(tree.contains("Add tests"), "{tree}");
+
+    env.ok(&["undo"]);
+    let tree = env.ok(&["tree", &parent_id[..8]]);
+    assert!(!tree.contains("Write migration"), "{tree}");
+    assert!(!tree.contains("Add tests"), "{tree}");
 }

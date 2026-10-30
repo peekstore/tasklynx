@@ -30,7 +30,7 @@
 
 ## Overview
 
-Tasklynx keeps your tasks in a single local JSON file, with no account, no daemon, and no network dependency. It borrows the parts of a Git workflow that are useful for planning — branches for parallel streams of work, short prefix IDs, and fast filtering — and gives you three ways to use it:
+Tasklynx keeps your tasks in a single local JSON file, with no account, no daemon, and no network dependency for core task management. It borrows the parts of a Git workflow that are useful for planning — branches for parallel streams of work, short prefix IDs, and fast filtering — and gives you three ways to use it:
 
 - **CLI** (`tasklynx` or the short alias `tx`) for scripting and quick capture.
 - **TUI** (`tx board`) for an interactive Kanban board in the terminal.
@@ -40,13 +40,14 @@ Everything is written atomically to disk, so a crash can't leave a half-written 
 
 ## Features
 
-- **Local-first** — tasks live on your machine; nothing is sent anywhere.
+- **Local-first** — tasks live on your machine; nothing is sent anywhere unless you explicitly run an AI command.
 - **Git-style branches** — keep work for different features or releases separate.
 - **Short IDs** — any unique prefix of a task UUID works in commands.
 - **Priorities and due dates** — `low`, `normal`, `high`, `urgent`, with overdue detection.
 - **Projects and tags** — group work and filter instantly.
 - **Three interfaces** — CLI, terminal Kanban TUI, and a web dashboard.
 - **Export** — JSON or Markdown for backups and sharing.
+- **Opt-in AI planning** — draft task plans and subtask breakdowns with local Ollama or OpenAI-compatible providers behind the `ai` build feature.
 - **Cross-platform** — Linux, macOS, Windows, and Android (Termux), with ARM and x86 builds.
 - **Single binary** — no runtime dependencies; `tx self update` keeps it current.
 
@@ -190,6 +191,9 @@ tx export --format md > TASKS.md
 | `tx stats` | Show task and branch totals |
 | `tx branch <list\|create\|switch\|delete>` | Manage branches |
 | `tx git ...` | Inspect Git context, link commits, scan TODOs, and manage commit hooks |
+| `tx ai plan <goal>` | Draft a task plan with an opt-in AI provider |
+| `tx ai breakdown <id>` | Draft subtasks for an existing task |
+| `tx ai doctor` | Check AI provider and model configuration |
 | `tx export --format <json\|md>` | Export tasks |
 | `tx board` | Open the terminal Kanban board |
 | `tx web` | Start the web dashboard |
@@ -225,6 +229,48 @@ foreground = "#f5f5f5"
 muted = "#8f949e"
 font_family = "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace"
 default_project = "default"
+
+[ai]
+provider = "none"
+model = "llama3.1"
+endpoint = "http://127.0.0.1:11434"
+max_context_tasks = 50
+include_descriptions = true
+redact = true
+```
+
+### AI providers
+
+AI is disabled by default. To use it, build with the optional networking feature and select a provider:
+
+```bash
+cargo build --features ai
+
+# config.toml
+[ai]
+provider = "ollama"
+model = "llama3.1"
+endpoint = "http://127.0.0.1:11434"
+```
+
+The `ollama` and `openai-compatible` providers require a feature-enabled build. For hosted OpenAI-compatible endpoints, set `TASKLYNX_AI_API_KEY` in the environment instead of writing keys to `config.toml`. Use `tx ai doctor` to verify reachability and model availability.
+
+Google Gemini through AI Studio works through the OpenAI-compatible provider:
+
+```toml
+[ai]
+provider = "openai-compatible"
+model = "gemini-2.5-flash"
+endpoint = "https://generativelanguage.googleapis.com/v1beta/openai"
+```
+
+Preview AI plans before writing them:
+
+```bash
+tx ai plan "Ship the billing API"
+tx ai plan "Ship the billing API" --apply
+tx ai breakdown <id>
+tx ai breakdown <id> --apply
 ```
 
 ### Data storage
@@ -244,7 +290,9 @@ Set `TASKLYNX_HOME` to relocate the store; the file is written to `$TASKLYNX_HOM
 ```bash
 cargo build
 cargo test
+cargo test --all-targets --features ai
 cargo clippy --all-targets -- -D warnings
+cargo clippy --all-targets --features ai -- -D warnings
 cargo fmt --all -- --check
 ```
 

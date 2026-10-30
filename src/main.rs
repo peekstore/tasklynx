@@ -1,3 +1,4 @@
+mod ai;
 mod config;
 mod git;
 mod model;
@@ -114,6 +115,10 @@ enum Cmd {
     Git {
         #[command(subcommand)]
         action: GitCmd,
+    },
+    Ai {
+        #[command(subcommand)]
+        action: AiCmd,
     },
     Edit {
         id: String,
@@ -242,6 +247,31 @@ enum HookCmd {
 }
 
 #[derive(Subcommand)]
+enum AiCmd {
+    Plan {
+        goal: String,
+        #[arg(long)]
+        apply: bool,
+        #[arg(long)]
+        project: Option<String>,
+        #[arg(long, default_value_t = 10)]
+        limit: usize,
+        #[arg(long)]
+        no_description: bool,
+    },
+    Breakdown {
+        id: String,
+        #[arg(long)]
+        apply: bool,
+        #[arg(long, default_value_t = 10)]
+        limit: usize,
+        #[arg(long)]
+        no_description: bool,
+    },
+    Doctor,
+}
+
+#[derive(Subcommand)]
 enum BranchCmd {
     List,
     Create { name: String },
@@ -358,6 +388,33 @@ fn print_tree(
     children.sort_by_key(|t| t.created_at);
     for child in children {
         print_tree(data, child, depth + 1, seen);
+    }
+}
+
+fn print_ai_tasks(label: &str, tasks: &[Task]) {
+    println!("{label}: {} task(s)", tasks.len());
+    for (index, task) in tasks.iter().enumerate() {
+        print!(
+            "  {}. [{}] {}  {}",
+            index + 1,
+            task.priority,
+            task.project,
+            task.title
+        );
+        let dependencies: Vec<String> = task
+            .blocked_by
+            .iter()
+            .filter_map(|id| {
+                tasks
+                    .iter()
+                    .position(|candidate| candidate.id == *id)
+                    .map(|position| (position + 1).to_string())
+            })
+            .collect();
+        if !dependencies.is_empty() {
+            print!(" depends_on={}", dependencies.join(","));
+        }
+        println!();
     }
 }
 
@@ -1076,6 +1133,101 @@ async fn main() -> Result<()> {
                     .args(["config", "--unset", "tasklynx.taskId"])
                     .output()?;
                 println!("deactivated");
+            }
+        },
+        Cmd::Ai { action } => match action {
+            AiCmd::Plan {
+                goal,
+                apply,
+                project,
+                limit,
+                no_description,
+            } => {
+                if limit == 0 || limit > 100 {
+                    anyhow::bail!("--limit must be between 1 and 100");
+                }
+                let config = config::load()?;
+                let provider = ai::provider(&config.ai)?;
+                let include_descriptions = config.ai.include_descriptions && !no_description;
+                let plan = ai::request_plan(
+                    provider.as_ref(),
+                    &config.ai,
+                    ai::PlanRequest {
+                        goal: &goal,
+                        tasks: &data.tasks,
+                        branch: &data.current_branch,
+                        project: project.as_deref(),
+                        limit,
+                        include_descriptions,
+                    },
+                )?;
+                let default_project = project.as_deref().unwrap_or(&config.default_project);
+                let tasks = ai::plan_tasks(&plan, &data, default_project)?;
+                if let Some(plan_project) = &plan.project {
+                    println!("project: {plan_project}");
+                }
+                print_ai_tasks(if apply { "tasks" } else { "preview" }, &tasks);
+                if apply {
+                    let _lock = store::StoreLock::acquire()?;
+                    let count = tasks.len();
+                    let previous = data.clone();
+                    data.tasks.extend(tasks);
+                    store::save_with_undo(&data, &previous)?;
+                    println!("created {count} task(s)");
+                } else {
+                    println!("preview only; pass --apply to create these tasks");
+                }
+            }
+            AiCmd::Breakdown {
+                id,
+                apply,
+                limit,
+                no_description,
+            } => {
+                if limit == 0 || limit > 100 {
+                    anyhow::bail!("--limit must be between 1 and 100");
+                }
+                let parent = store::find(&data, &id)?.clone();
+                let children: Vec<Task> = data
+                    .tasks
+                    .iter()
+                    .filter(|task| task.parent == Some(parent.id))
+                    .cloned()
+                    .collect();
+                let config = config::load()?;
+                let provider = ai::provider(&config.ai)?;
+                let include_descriptions = config.ai.include_descriptions && !no_description;
+                let plan = ai::request_breakdown(
+                    provider.as_ref(),
+                    &config.ai,
+                    &parent,
+                    &children,
+                    limit,
+                    include_descriptions,
+                )?;
+                let tasks = ai::breakdown_tasks(&parent, &plan)?;
+                println!("parent: {} {}", &parent.id.to_string()[..8], parent.title);
+                print_ai_tasks(if apply { "tasks" } else { "preview" }, &tasks);
+                if apply {
+                    let _lock = store::StoreLock::acquire()?;
+                    let count = tasks.len();
+                    let previous = data.clone();
+                    data.tasks.extend(tasks);
+                    store::save_with_undo(&data, &previous)?;
+                    println!("created {count} subtask(s)");
+                } else {
+                    println!("preview only; pass --apply to create these subtasks");
+                }
+            }
+            AiCmd::Doctor => {
+                let config = config::load()?;
+                let provider = ai::provider(&config.ai)?;
+                println!("provider: {}", provider.name());
+                println!("endpoint: {}", config.ai.endpoint);
+                println!("model: {}", config.ai.model);
+                for line in provider.doctor()? {
+                    println!("{line}");
+                }
             }
         },
         Cmd::Edit {

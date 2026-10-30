@@ -34,6 +34,8 @@ Run the same checks as CI before opening a pull request:
 cargo fmt --all -- --check
 cargo clippy --all-targets -- -D warnings
 cargo test --all-targets
+cargo clippy --all-targets --features ai -- -D warnings
+cargo test --all-targets --features ai
 ```
 
 ## Project layout
@@ -45,6 +47,7 @@ src/
 ├── store.rs   # JSON persistence and export
 ├── tui.rs     # Ratatui terminal board
 ├── web.rs     # Axum server and REST API
+├── ai.rs      # Optional AI providers and prompt handling
 └── config.rs  # Config load/save
 assets/        # Embedded web UI and icons
 docs/          # MkDocs documentation

@@ -298,6 +298,29 @@ impl Default for ProjectData {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
+pub struct AiConfig {
+    pub provider: String,
+    pub model: String,
+    pub endpoint: String,
+    pub max_context_tasks: usize,
+    pub include_descriptions: bool,
+    pub redact: bool,
+}
+impl Default for AiConfig {
+    fn default() -> Self {
+        Self {
+            provider: "none".into(),
+            model: "llama3.1".into(),
+            endpoint: "http://127.0.0.1:11434".into(),
+            max_context_tasks: 50,
+            include_descriptions: true,
+            redact: true,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
 pub struct AppConfig {
     pub host: String,
     pub port: u16,
@@ -308,6 +331,7 @@ pub struct AppConfig {
     pub muted: String,
     pub font_family: String,
     pub default_project: String,
+    pub ai: AiConfig,
 }
 impl Default for AppConfig {
     fn default() -> Self {
@@ -321,6 +345,7 @@ impl Default for AppConfig {
             muted: "#8f949e".into(),
             font_family: "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace".into(),
             default_project: "default".into(),
+            ai: AiConfig::default(),
         }
     }
 }

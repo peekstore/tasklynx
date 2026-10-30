@@ -10,6 +10,7 @@ Tasklynx is a small synchronous CLI with two optional front ends. This page desc
 | `src/model.rs` | `Task`, `Status`, `Priority`, `ProjectData`, `AppConfig`, date parsing |
 | `src/store.rs` | JSON load/save with atomic writes, lookup helpers, export |
 | `src/config.rs` | Config load/save and path resolution |
+| `src/ai.rs` | Provider abstraction, prompt building, response validation, redaction |
 | `src/tui.rs` | Ratatui terminal Kanban board |
 | `src/web.rs` | Axum server, REST endpoints, embedded assets |
 | `build.rs` | Windows icon embedding |
@@ -23,8 +24,10 @@ graph LR
   CLI --> TUI[tui.rs]
   CLI --> Web[web.rs]
   CLI --> Config[config.rs]
+  CLI --> AI[ai.rs]
   Store --> JSON[(tasks.json)]
   Config --> TOML[(config.toml)]
+  AI -. optional feature .-> Provider[(Ollama / OpenAI-compatible)]
 ```
 
 `main.rs` loads `ProjectData` once, dispatches the subcommand, mutates the in-memory model, and saves it back. The TUI and web server receive a snapshot of the same data; the web server holds it behind a mutex and persists changes on each write.
@@ -58,6 +61,17 @@ Config is separate from data:
 
 - `~/.config/peekstore/tasklynx/config.toml` (or `$XDG_CONFIG_HOME/...`).
 - Missing or partial config safely falls back to `AppConfig::default()`.
+- The `[ai]` table controls opt-in provider selection, model, endpoint, context limits, and redaction.
+
+## AI planning
+
+- `src/ai.rs` defines a small `Provider` trait and an offline `none` provider.
+- `ollama` and `openai-compatible` HTTP providers are compiled only with the `ai` Cargo feature.
+- Default builds make no AI network calls and have no HTTP client dependency.
+- Prompt context is limited to open tasks on the current branch, capped by `ai.max_context_tasks`.
+- Common secrets are redacted when `ai.redact` is enabled.
+- AI responses are parsed into a strict JSON schema and validated before any task is created.
+- `tx ai plan` and `tx ai breakdown` preview by default; `--apply` is required to persist tasks.
 
 ## Web server
 
@@ -75,7 +89,8 @@ Config is separate from data:
 ## Design constraints
 
 - **Single binary** — no runtime assets or external dynamic libraries.
-- **Local-first** — no network calls at runtime; `tx self update` shells out to the installer explicitly.
-- **Small dependency surface** — clap, clap_complete, clap_mangen, serde, chrono, uuid, anyhow, dirs, ratatui, crossterm, axum, tokio, toml.
+- **Local-first** — no network calls by default; AI networking requires the `ai` feature plus an explicit `tx ai` command, and `tx self update` shells out to the installer explicitly.
+- **Small default dependency surface** — clap, clap_complete, clap_mangen, serde, chrono, uuid, anyhow, dirs, ratatui, crossterm, axum, tokio, toml.
+- **Optional AI networking** — the `ai` feature adds the HTTP client for Ollama and OpenAI-compatible providers; default builds stay network-free.
 
 [Back to README](https://github.com/peekstore/tasklynx/blob/main/README.md)

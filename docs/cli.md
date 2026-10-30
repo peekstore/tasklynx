@@ -51,6 +51,9 @@ Running `tx` with no subcommand opens the terminal board.
 | `tx git hook` | Install or remove the Tasklynx Git hook |
 | `tx git activate <id>` | Mark a task active for commit trailers |
 | `tx git deactivate` | Clear the active commit task |
+| `tx ai plan <goal>` | Draft a task plan with an AI provider |
+| `tx ai breakdown <id>` | Draft subtasks for an existing task |
+| `tx ai doctor` | Check AI provider and model configuration |
 | `tx export` | Export tasks as JSON or Markdown |
 | `tx web` | Start the web dashboard |
 | `tx board` | Open the terminal Kanban board |
@@ -239,6 +242,80 @@ tx git hook uninstall
 - `tx git hook uninstall` removes only a hook installed by Tasklynx.
 
 Tasklynx refuses to overwrite or remove hooks it did not install. Git integration only reads local repository metadata and updates local task data. It does not push, rewrite history, or contact a remote.
+
+## AI planning
+
+AI commands are opt-in. The default build keeps networking disabled and the default provider is `none`:
+
+```toml
+[ai]
+provider = "none"
+model = "llama3.1"
+endpoint = "http://127.0.0.1:11434"
+max_context_tasks = 50
+include_descriptions = true
+redact = true
+```
+
+To use Ollama or an OpenAI-compatible endpoint, build with the `ai` feature and select a provider:
+
+```bash
+cargo build --features ai
+tx ai doctor
+```
+
+Supported providers:
+
+| Provider | Notes |
+| --- | --- |
+| `none` | Offline mode; AI commands explain how to configure a provider |
+| `ollama` | Uses `POST /api/generate` and `GET /api/tags` on the configured endpoint |
+| `openai-compatible` | Uses `<endpoint>/chat/completions` and `<endpoint>/models`; include the API version path in the endpoint |
+
+Hosted endpoints should read the API key from `TASKLYNX_AI_API_KEY`; keys are never written to `config.toml`.
+
+Google Gemini through AI Studio uses the OpenAI-compatible endpoint:
+
+```toml
+[ai]
+provider = "openai-compatible"
+model = "gemini-2.5-flash"
+endpoint = "https://generativelanguage.googleapis.com/v1beta/openai"
+```
+
+```bash
+export TASKLYNX_AI_API_KEY="your-ai-studio-key"
+tx ai doctor
+```
+
+### Plan and breakdown
+
+```bash
+tx ai plan "Ship the billing API"
+tx ai plan "Ship the billing API" --project api --limit 8
+tx ai plan "Ship the billing API" --apply
+tx ai breakdown <id>
+tx ai breakdown <id> --apply --limit 5
+```
+
+- `tx ai plan` drafts new tasks from a goal.
+- `tx ai breakdown` drafts subtasks under an existing task.
+- Both commands preview by default. Nothing is written until `--apply` is passed.
+- `--limit` caps the number of returned tasks.
+- `--no-description` omits task descriptions from the prompt context.
+- `depends_on` entries in the AI response become real blockers between new tasks.
+- Existing open tasks on the current branch are included as context, up to `ai.max_context_tasks`.
+- With `redact = true`, common API keys, tokens, passwords, and private keys are redacted before the prompt is sent.
+
+AI output is treated as untrusted: titles, priorities, dates, tags, and dependency indexes are validated before tasks are shown or created. Tasklynx never auto-completes, deletes, or commits anything based on AI output.
+
+### Doctor
+
+```bash
+tx ai doctor
+```
+
+Prints the configured provider, endpoint, and model, then checks connectivity. Ollama checks installed models via `/api/tags`; OpenAI-compatible providers check `/v1/models`. The command does not send task data.
 
 ## Branches
 

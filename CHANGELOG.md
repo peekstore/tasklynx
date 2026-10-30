@@ -12,6 +12,12 @@
 - Added opt-in Git hooks with `tx git hook install|uninstall` and task activation.
 - Added `tx git open` for task commit and PR URLs, including `--print`.
 - Added Git metadata, source locations, and blocker fields to the task schema with backward-compatible defaults.
+- Added opt-in AI provider configuration for `none`, Ollama, and OpenAI-compatible endpoints.
+- Added `tx ai plan` and `tx ai breakdown` with preview-by-default output and `--apply`.
+- Added `tx ai doctor` for provider reachability and model checks.
+- Added strict AI response validation, task dependency mapping, context limits, and secret redaction.
+- Added an optional `ai` Cargo feature so default builds remain network-free.
+- Added OpenAI-compatible endpoint support for Google Gemini AI Studio.
 
 ## 0.0.1-beta-4
 

@@ -38,6 +38,14 @@ foreground = "#f5f5f5"
 muted = "#8f949e"
 font_family = "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace"
 default_project = "default"
+
+[ai]
+provider = "none"
+model = "llama3.1"
+endpoint = "http://127.0.0.1:11434"
+max_context_tasks = 50
+include_descriptions = true
+redact = true
 ```
 
 | Key | Type | Purpose |
@@ -51,6 +59,49 @@ default_project = "default"
 | `muted` | string | Secondary text |
 | `font_family` | string | CSS font stack for the dashboard |
 | `default_project` | string | Default project for new tasks |
+| `ai.provider` | string | `none`, `ollama`, or `openai-compatible` |
+| `ai.model` | string | Model name sent to the provider |
+| `ai.endpoint` | string | Provider base URL |
+| `ai.max_context_tasks` | integer | Maximum open tasks included in prompt context |
+| `ai.include_descriptions` | boolean | Include task descriptions in prompt context |
+| `ai.redact` | boolean | Redact common secrets before sending prompts |
+
+## AI providers
+
+AI is disabled by default. The `ollama` and `openai-compatible` providers require a build with the optional `ai` feature:
+
+```bash
+cargo build --features ai
+```
+
+Ollama example:
+
+```toml
+[ai]
+provider = "ollama"
+model = "llama3.1"
+endpoint = "http://127.0.0.1:11434"
+```
+
+OpenAI-compatible example:
+
+```toml
+[ai]
+provider = "openai-compatible"
+model = "gpt-4.1-mini"
+endpoint = "https://api.openai.com/v1"
+```
+
+Google Gemini through AI Studio:
+
+```toml
+[ai]
+provider = "openai-compatible"
+model = "gemini-2.5-flash"
+endpoint = "https://generativelanguage.googleapis.com/v1beta/openai"
+```
+
+The endpoint must include the API version path, such as `/v1` or `/v1beta/openai`. For hosted endpoints, put the key in `TASKLYNX_AI_API_KEY`; it is never stored in `config.toml`. Run `tx ai doctor` to check provider reachability and model availability. AI commands build prompt context from the current branch only and require `--apply` before creating tasks.
 
 Command-line flags override the file for that run:
 
@@ -83,6 +134,7 @@ Writes are atomic: Tasklynx writes a temporary file and renames it over `tasks.j
 | --- | --- | --- |
 | `XDG_CONFIG_HOME` | Tasklynx | Base directory for `config.toml` |
 | `TASKLYNX_HOME` | Tasklynx | Relocates the data store |
+| `TASKLYNX_AI_API_KEY` | `tx ai` | API key for OpenAI-compatible providers |
 | `TASKLYNX_VERSION` | Installers | Pin the release to install |
 | `DRY_RUN` | `installer.sh` | Print the resolved artifact without installing |
 | `TERMUX_VERSION` | `installer.sh` | Force Termux/Android detection |
