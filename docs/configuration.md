@@ -39,6 +39,14 @@ muted = "#8f949e"
 font_family = "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace"
 default_project = "default"
 
+# Saved views are added by `tx view save` or `tx list --save`.
+# [views.api]
+# project = "api"
+# tag = "backend"
+# status = "todo"
+# search = "auth"
+# all = false
+
 [ai]
 provider = "none"
 model = "llama3.1"
@@ -59,6 +67,7 @@ redact = true
 | `muted` | string | Secondary text |
 | `font_family` | string | CSS font stack for the dashboard |
 | `default_project` | string | Default project for new tasks |
+| `views.<name>` | table | Saved list filters managed by `tx view save` |
 | `ai.provider` | string | `none`, `ollama`, or `openai-compatible` |
 | `ai.model` | string | Model name sent to the provider |
 | `ai.endpoint` | string | Provider base URL |
@@ -101,7 +110,7 @@ model = "gemini-2.5-flash"
 endpoint = "https://generativelanguage.googleapis.com/v1beta/openai"
 ```
 
-The endpoint must include the API version path, such as `/v1` or `/v1beta/openai`. For hosted endpoints, put the key in `TASKLYNX_AI_API_KEY`; it is never stored in `config.toml`. Run `tx ai doctor` to check provider reachability and model availability. AI commands build prompt context from the current branch only and require `--apply` before creating tasks.
+The endpoint must include the API version path, such as `/v1` or `/v1beta/openai`. For hosted endpoints, put the key in `TASKLYNX_AI_API_KEY`; it is never stored in `config.toml`. Run `tx ai doctor` to check provider reachability and model availability. AI commands build prompt context from the current branch only and require `--apply` before creating tasks. Offline triage uses the deterministic `tx next` ranking. Set `TASKLYNX_AI_LOG=1` to log prompt/response sizes and provider latency without logging prompt contents.
 
 Command-line flags override the file for that run:
 
@@ -135,6 +144,7 @@ Writes are atomic: Tasklynx writes a temporary file and renames it over `tasks.j
 | `XDG_CONFIG_HOME` | Tasklynx | Base directory for `config.toml` |
 | `TASKLYNX_HOME` | Tasklynx | Relocates the data store |
 | `TASKLYNX_AI_API_KEY` | `tx ai` | API key for OpenAI-compatible providers |
+| `TASKLYNX_AI_LOG` | `tx ai` | Log prompt/response sizes and provider latency to stderr |
 | `TASKLYNX_VERSION` | Installers | Pin the release to install |
 | `DRY_RUN` | `installer.sh` | Print the resolved artifact without installing |
 | `TERMUX_VERSION` | `installer.sh` | Force Termux/Android detection |

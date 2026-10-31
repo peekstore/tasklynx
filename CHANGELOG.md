@@ -14,10 +14,22 @@
 - Added Git metadata, source locations, and blocker fields to the task schema with backward-compatible defaults.
 - Added opt-in AI provider configuration for `none`, Ollama, and OpenAI-compatible endpoints.
 - Added `tx ai plan` and `tx ai breakdown` with preview-by-default output and `--apply`.
+- Added `tx ai triage` with deterministic offline fallback and `--include-blocked`.
+- Added `tx ai standup`, `tx ai review`, and `tx ai ask` with validated report and answer schemas.
+- Added AI preview/apply endpoints and an AI copilot panel to the web dashboard.
+- Added TUI detail-pane AI breakdown and triage previews.
 - Added `tx ai doctor` for provider reachability and model checks.
 - Added strict AI response validation, task dependency mapping, context limits, and secret redaction.
 - Added an optional `ai` Cargo feature so default builds remain network-free.
 - Added OpenAI-compatible endpoint support for Google Gemini AI Studio.
+- Added `tx remind` for overdue, today, and upcoming tasks with opt-in desktop notifications.
+- Added iCalendar export with `tx export --format ics`, including recurrence rules and stable event IDs.
+- Added local time tracking with `tx start`, `tx stop`, and `tx time` using the existing estimate field.
+- Active timers stop automatically when a task is completed or deleted.
+- Added built-in templates for `tx add --template review|bug|feature|test|chore`.
+- Added saved list filters and views with `tx view save|list|show|run|delete` and `tx list --view`.
+- Added bulk completion with `tx complete --done-before <date>`, `--all`, and `--force`.
+- Added title similarity detection with `tx duplicates` and warnings when `tx add` finds a similar open task.
 
 ## 0.0.1-beta-4
 

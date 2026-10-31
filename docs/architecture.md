@@ -9,7 +9,10 @@ Tasklynx is a small synchronous CLI with two optional front ends. This page desc
 | `src/main.rs` | Clap definitions, command dispatch, and user-facing output |
 | `src/model.rs` | `Task`, `Status`, `Priority`, `ProjectData`, `AppConfig`, date parsing |
 | `src/store.rs` | JSON load/save with atomic writes, lookup helpers, export |
+| `src/reminders.rs` | Due-task reminders, desktop notifications, and iCalendar export |
 | `src/config.rs` | Config load/save and path resolution |
+| `src/templates.rs` | Built-in task templates for `tx add --template` |
+| `src/duplicates.rs` | Normalized title similarity and duplicate detection |
 | `src/ai.rs` | Provider abstraction, prompt building, response validation, redaction |
 | `src/tui.rs` | Ratatui terminal Kanban board |
 | `src/web.rs` | Axum server, REST endpoints, embedded assets |
@@ -25,6 +28,7 @@ graph LR
   CLI --> Web[web.rs]
   CLI --> Config[config.rs]
   CLI --> AI[ai.rs]
+  CLI --> Reminders[reminders.rs]
   Store --> JSON[(tasks.json)]
   Config --> TOML[(config.toml)]
   AI -. optional feature .-> Provider[(Ollama / OpenAI-compatible)]
@@ -45,7 +49,7 @@ graph LR
 }
 ```
 
-Each `Task` carries an ID, title, description, status (`todo`/`doing`/`done`), priority (`low`/`normal`/`high`/`urgent`), project, branch, tags, optional due date, and timestamps.
+Each `Task` carries an ID, title, description, status (`todo`/`doing`/`done`), priority (`low`/`normal`/`high`/`urgent`), project, branch, tags, optional due date, optional estimate, local time entries, and timestamps. A time entry with no end timestamp is the active timer.
 
 Serde deserialization uses defaults for missing fields, so older stores keep loading as the schema grows. `version` exists to support future migrations.
 
@@ -56,6 +60,8 @@ Serde deserialization uses defaults for missing fields, so older stores keep loa
 - **Cross-process safety** — mutating operations acquire an advisory file lock (`.lock`) with timeout and stale-lock recovery, preventing race conditions between concurrent CLI or web server instances.
 
 ## Config
+
+Saved list views are stored in `config.toml` under `[views.<name>]`. They contain optional project, tag, status, and search filters plus the branch scope.
 
 Config is separate from data:
 
@@ -72,12 +78,16 @@ Config is separate from data:
 - Common secrets are redacted when `ai.redact` is enabled.
 - AI responses are parsed into a strict JSON schema and validated before any task is created.
 - `tx ai plan` and `tx ai breakdown` preview by default; `--apply` is required to persist tasks.
+- `tx ai triage` falls back to the deterministic `tx next` ranking when no provider is configured; AI triage output must resolve to known task IDs.
+- `tx ai standup`, `tx ai review`, and `tx ai ask` return validated reports/answers and never mutate the store.
+- Web AI endpoints generate previews and use separate apply endpoints for plan and breakdown drafts.
 
 ## Web server
 
 - Built on `axum` and `tokio`.
 - Serves an embedded single-page application and SVG favicon via `include_str!`, keeping the binary fully self-contained.
 - JSON API: `GET /api/tasks`, `POST /api/tasks`, `PUT /api/tasks/{id}`, `DELETE /api/tasks/{id}`.
+- AI API: `POST /api/ai/triage`, `/plan`, `/apply-plan`, `/breakdown`, `/apply-breakdown`, `/standup`, `/review`, and `/ask`. Provider calls run on `spawn_blocking`.
 - Hardened with `DefaultBodyLimit` (2MB) and security headers (`CSP`, `nosniff`, `X-Frame-Options: DENY`, `no-referrer`).
 - Binds to `127.0.0.1:8787` by default.
 
@@ -85,6 +95,7 @@ Config is separate from data:
 
 - Built on `ratatui` and `crossterm`.
 - Interactive 3-column Kanban workspace supporting cursor navigation (`j`/`k`), column switching (`h`/`l`), status advancement (`Space`), completion toggle (`x`), and branch cycling (`b`).
+- Detail pane shows the selected task and supports preview-only AI breakdown (`a`) and triage (`t`); `c` clears the AI result.
 
 ## Design constraints
 

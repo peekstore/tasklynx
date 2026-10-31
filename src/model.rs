@@ -1,5 +1,6 @@
 use chrono::{DateTime, Datelike, Days, Local, NaiveDate, TimeZone, Utc};
 use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
 use uuid::Uuid;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
@@ -109,6 +110,26 @@ fn days_in_month(year: i32, month: u32) -> u32 {
     (next - first).num_days() as u32
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct TimeEntry {
+    pub started_at: DateTime<Utc>,
+    #[serde(default)]
+    pub ended_at: Option<DateTime<Utc>>,
+}
+
+impl TimeEntry {
+    pub fn is_active(&self) -> bool {
+        self.ended_at.is_none()
+    }
+
+    pub fn duration_seconds(&self, now: DateTime<Utc>) -> u64 {
+        let end = self.ended_at.unwrap_or(now);
+        end.signed_duration_since(self.started_at)
+            .num_seconds()
+            .max(0) as u64
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Task {
     pub id: Uuid,
@@ -148,6 +169,8 @@ pub struct Task {
     pub blocked_by: Vec<Uuid>,
     #[serde(default)]
     pub estimate_minutes: Option<u32>,
+    #[serde(default)]
+    pub time_entries: Vec<TimeEntry>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
     pub completed_at: Option<DateTime<Utc>>,
@@ -185,15 +208,45 @@ impl Task {
             parent: None,
             blocked_by: Vec::new(),
             estimate_minutes: None,
+            time_entries: Vec::new(),
             created_at: now,
             updated_at: now,
             completed_at: None,
         }
     }
     pub fn complete(&mut self) {
+        let now = Utc::now();
+        self.stop_timer(now);
         self.status = Status::Done;
-        self.completed_at = Some(Utc::now());
-        self.updated_at = Utc::now();
+        self.completed_at = Some(now);
+        self.updated_at = now;
+    }
+    pub fn active_time_entry(&self) -> Option<&TimeEntry> {
+        self.time_entries.iter().find(|entry| entry.is_active())
+    }
+    pub fn start_timer(&mut self, now: DateTime<Utc>) {
+        self.time_entries.push(TimeEntry {
+            started_at: now,
+            ended_at: None,
+        });
+        self.updated_at = now;
+    }
+    pub fn stop_timer(&mut self, now: DateTime<Utc>) -> Option<u64> {
+        let entry = self
+            .time_entries
+            .iter_mut()
+            .rev()
+            .find(|entry| entry.is_active())?;
+        let end = now.max(entry.started_at);
+        entry.ended_at = Some(end);
+        self.updated_at = end;
+        Some(entry.duration_seconds(end))
+    }
+    pub fn tracked_seconds(&self, now: DateTime<Utc>) -> u64 {
+        self.time_entries
+            .iter()
+            .map(|entry| entry.duration_seconds(now))
+            .sum()
     }
     pub fn set_status(&mut self, status: Status) -> Option<Task> {
         let was_done = self.status == Status::Done;
@@ -244,6 +297,7 @@ impl Task {
         next.created_at = now;
         next.updated_at = now;
         next.completed_at = None;
+        next.time_entries.clear();
         Some(next)
     }
     pub fn overdue(&self) -> bool {
@@ -264,6 +318,38 @@ impl Task {
             .filter(|t| t.parent == Some(self.id) && t.status != Status::Done)
             .count()
     }
+}
+
+pub fn priority_rank(priority: &Priority) -> u8 {
+    match priority {
+        Priority::Urgent => 0,
+        Priority::High => 1,
+        Priority::Normal => 2,
+        Priority::Low => 3,
+    }
+}
+
+/// Stable ordering shared by `tx next` and offline AI triage.
+pub fn next_key(task: &Task, now: DateTime<Utc>) -> (u8, u8, u8, i64, i64) {
+    let today = now.with_timezone(&Local).date_naive();
+    let (due_bucket, due_ts) = match task.due {
+        Some(due) if due < now => (0, due.timestamp()),
+        Some(due) if due.with_timezone(&Local).date_naive() == today => (1, due.timestamp()),
+        Some(due) => (2, due.timestamp()),
+        None => (3, i64::MAX),
+    };
+    let status = match task.status {
+        Status::Doing => 0,
+        Status::Todo => 1,
+        Status::Done => 2,
+    };
+    (
+        priority_rank(&task.priority),
+        due_bucket,
+        status,
+        due_ts,
+        task.created_at.timestamp(),
+    )
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -319,6 +405,20 @@ impl Default for AiConfig {
     }
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq, Eq)]
+pub struct SavedView {
+    #[serde(default)]
+    pub project: Option<String>,
+    #[serde(default)]
+    pub tag: Option<String>,
+    #[serde(default)]
+    pub status: Option<String>,
+    #[serde(default)]
+    pub search: Option<String>,
+    #[serde(default)]
+    pub all: bool,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
 pub struct AppConfig {
@@ -331,6 +431,8 @@ pub struct AppConfig {
     pub muted: String,
     pub font_family: String,
     pub default_project: String,
+    #[serde(default)]
+    pub views: BTreeMap<String, SavedView>,
     pub ai: AiConfig,
 }
 impl Default for AppConfig {
@@ -345,6 +447,7 @@ impl Default for AppConfig {
             muted: "#8f949e".into(),
             font_family: "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace".into(),
             default_project: "default".into(),
+            views: BTreeMap::new(),
             ai: AiConfig::default(),
         }
     }
@@ -513,6 +616,7 @@ mod tests {
         assert_eq!(next.tags, vec!["backend"]);
         assert_eq!(next.status, Status::Todo);
         assert!(next.completed_at.is_none());
+        assert!(next.time_entries.is_empty());
     }
 
     #[test]
@@ -528,6 +632,7 @@ mod tests {
         assert_eq!(t.repeat, Repeat::None);
         assert_eq!(t.repeat_until, None);
         assert_eq!(t.series_id, None);
+        assert!(t.time_entries.is_empty());
         assert!(t.git_branch.is_empty());
         assert!(t.blocked_by.is_empty());
         assert!(t.source_path.is_none());
@@ -602,6 +707,43 @@ mod tests {
         assert!(t.set_status(Status::Doing).is_none());
         assert_eq!(t.status, Status::Doing);
         assert!(t.completed_at.is_none());
+    }
+
+    #[test]
+    fn time_entries_track_active_and_completed_time() {
+        let mut t = task();
+        let start = Utc.with_ymd_and_hms(2026, 1, 1, 10, 0, 0).unwrap();
+        t.start_timer(start);
+        assert!(t.active_time_entry().is_some());
+        assert_eq!(t.tracked_seconds(start + chrono::Duration::seconds(90)), 90);
+        assert_eq!(
+            t.stop_timer(start + chrono::Duration::seconds(90)),
+            Some(90)
+        );
+        assert!(t.active_time_entry().is_none());
+        assert_eq!(t.tracked_seconds(start + chrono::Duration::hours(1)), 90);
+    }
+
+    #[test]
+    fn completing_task_stops_running_timer() {
+        let mut t = task();
+        t.start_timer(Utc::now());
+        t.complete();
+        assert!(t.active_time_entry().is_none());
+        assert_eq!(t.time_entries.len(), 1);
+        assert!(t.time_entries[0].ended_at.is_some());
+    }
+
+    #[test]
+    fn next_occurrence_does_not_copy_time_entries() {
+        let mut t = task();
+        t.repeat = Repeat::Daily;
+        t.due = Some(due_on("2026-01-01"));
+        t.start_timer(Utc::now());
+        t.stop_timer(Utc::now());
+
+        let next = t.next_occurrence().unwrap();
+        assert!(next.time_entries.is_empty());
     }
 
     #[test]

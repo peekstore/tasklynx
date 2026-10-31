@@ -136,10 +136,14 @@ Requires Rust 1.70 or newer.
 tx init                                              # create the data store and config
 tx add "Implement authentication" \
   --project api --tag backend,auth --priority high --due 2026-12-31
+tx add --template review                             # apply a task template
 tx list                                              # tasks on the current branch
 tx board                                             # terminal Kanban board
 tx web                                               # dashboard at http://127.0.0.1:8787
 tx doing <id>                                        # mark a task in progress
+tx start <id>                                        # start a local timer
+tx stop                                              # stop the timer
+tx time <id>                                         # estimate versus actual
 tx complete <id>                                     # mark a task done
 tx next                                              # best next task
 tx git status                                        # Git branch and task context
@@ -156,14 +160,41 @@ tx branch switch main
 tx branch delete feature-auth
 ```
 
-### Search, export, and stats
+### Templates, views, and bulk actions
+
+```bash
+tx add --template review
+tx list --save api --project api
+tx list --view api
+tx complete --done-before 2026-10-31
+tx duplicates
+```
+
+Templates fill in common task fields. Saved views keep frequently used filters in `config.toml`, bulk completion closes overdue work in one undoable step, and `tx duplicates` flags similar open titles.
+
+### Time tracking
+
+```bash
+tx add "Write migration" --estimate 45
+tx start <id>
+tx stop
+tx time
+tx time <id>
+```
+
+Timers are local and daemon-free. Only one runs at a time; completing or deleting a task stops its active timer automatically.
+
+### Search, reminders, export, and stats
 
 ```bash
 tx search auth
 tx today
+tx remind --days 7
+tx remind --notify
 tx stats
 tx export --format json > tasks.json
 tx export --format md > TASKS.md
+tx export --format ics > tasklynx.ics
 ```
 
 ## CLI at a glance
@@ -171,14 +202,19 @@ tx export --format md > TASKS.md
 | Command | Description |
 | --- | --- |
 | `tx init` | Initialize the data store and config |
-| `tx add <title>` | Add a task (`--project`, `--tag`, `--priority`, `--due`) |
-| `tx list` | List tasks (`--project`, `--tag`, `--status`, `--search`, `--all`) |
+| `tx add <title>` | Add a task (`--project`, `--tag`, `--priority`, `--due`, `--estimate`, `--template`) |
+| `tx list` | List tasks (`--project`, `--tag`, `--status`, `--search`, `--all`, `--view`) |
+| `tx view <save\|list\|show\|run\|delete>` | Manage saved filters |
 | `tx doing <id>` | Mark a task in progress |
+| `tx start <id>` / `tx stop` | Track time locally |
+| `tx time [id]` | Show tracked time versus estimates |
 | `tx complete <id>` | Mark a task done |
+| `tx complete --done-before <date>` | Bulk-complete due work |
 | `tx reopen <id>` | Reopen a completed task |
 | `tx next` | Show the best next task to work on |
 | `tx edit <id>` | Edit title, description, priority, project, due date, or tags |
 | `tx duplicate <id>` | Duplicate a task |
+| `tx duplicates` | Find similar task titles |
 | `tx delete <id>` | Move a task to trash |
 | `tx undo` | Undo the most recent CLI mutation |
 | `tx trash <list\|restore\|purge>` | Manage deleted tasks |
@@ -188,13 +224,17 @@ tx export --format md > TASKS.md
 | `tx search <query>` | Search titles, descriptions, and tags |
 | `tx today` | Show tasks due today or overdue |
 | `tx agenda` | Show upcoming, overdue, and recurring work |
+| `tx remind` | Show due and overdue work (`--days`, opt-in `--notify`) |
 | `tx stats` | Show task and branch totals |
 | `tx branch <list\|create\|switch\|delete>` | Manage branches |
 | `tx git ...` | Inspect Git context, link commits, scan TODOs, and manage commit hooks |
 | `tx ai plan <goal>` | Draft a task plan with an opt-in AI provider |
 | `tx ai breakdown <id>` | Draft subtasks for an existing task |
+| `tx ai triage` | Rank next tasks with offline fallback |
+| `tx ai standup` / `tx ai review` | Summarize recent or branch work |
+| `tx ai ask <question>` | Ask a question about task context |
 | `tx ai doctor` | Check AI provider and model configuration |
-| `tx export --format <json\|md>` | Export tasks |
+| `tx export --format <json\|md\|ics>` | Export tasks |
 | `tx board` | Open the terminal Kanban board |
 | `tx web` | Start the web dashboard |
 | `tx config <init\|show>` | Manage configuration |
@@ -271,7 +311,13 @@ tx ai plan "Ship the billing API"
 tx ai plan "Ship the billing API" --apply
 tx ai breakdown <id>
 tx ai breakdown <id> --apply
+tx ai triage
+tx ai standup --days 1
+tx ai review feature-auth
+tx ai ask "What should I do next?"
 ```
+
+Triage falls back to deterministic `tx next` ranking when no provider is configured. The web dashboard has an AI copilot panel with preview and apply controls, and the terminal board exposes triage and breakdown previews in its detail pane. Use `TASKLYNX_AI_LOG=1` to log prompt sizes and latency without logging prompt contents.
 
 ### Data storage
 

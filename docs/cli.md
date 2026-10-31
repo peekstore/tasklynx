@@ -23,7 +23,11 @@ Running `tx` with no subcommand opens the terminal board.
 | `tx init` | Initialize the data store and config |
 | `tx add <title>` | Add a task |
 | `tx list` | List tasks on the current branch |
+| `tx view <save\|list\|show\|run\|delete>` | Manage saved filters and views |
 | `tx doing <id>` | Mark a task in progress |
+| `tx start <id>` | Start a local timer and mark a task in progress |
+| `tx stop` | Stop the running timer |
+| `tx time [id]` | Show tracked time versus estimates |
 | `tx complete <id>` | Mark a task done |
 | `tx reopen <id>` | Reopen a completed task |
 | `tx next` | Show the best next task to work on |
@@ -34,9 +38,11 @@ Running `tx` with no subcommand opens the terminal board.
 | `tx trash purge` | Permanently remove trashed tasks |
 | `tx edit <id>` | Edit task fields |
 | `tx duplicate <id>` | Duplicate a task |
+| `tx duplicates [--threshold N]` | Find tasks with similar titles |
 | `tx search <query>` | Search titles, descriptions, and tags |
 | `tx today` | Show tasks due today or overdue |
 | `tx agenda [--days N]` | Show upcoming, overdue, and recurring work |
+| `tx remind [--days N] [--notify]` | Show due and overdue work, optionally with a desktop notification |
 | `tx block <id> --by <blocker>` | Mark a task as blocked by another |
 | `tx unblock <id> [--by <blocker>]` | Remove one or all blockers |
 | `tx subtask <parent> <title>` | Create a subtask under a parent |
@@ -53,8 +59,12 @@ Running `tx` with no subcommand opens the terminal board.
 | `tx git deactivate` | Clear the active commit task |
 | `tx ai plan <goal>` | Draft a task plan with an AI provider |
 | `tx ai breakdown <id>` | Draft subtasks for an existing task |
+| `tx ai triage` | Rank the next tasks; offline fallback when no provider is configured |
+| `tx ai standup` | Summarize recent work for a daily standup |
+| `tx ai review [branch]` | Summarize open, blocked, and completed branch work |
+| `tx ai ask <question>` | Ask a grounded question about task context |
 | `tx ai doctor` | Check AI provider and model configuration |
-| `tx export` | Export tasks as JSON or Markdown |
+| `tx export` | Export tasks as JSON, Markdown, or iCalendar |
 | `tx web` | Start the web dashboard |
 | `tx board` | Open the terminal Kanban board |
 | `tx config` | Manage configuration |
@@ -87,8 +97,20 @@ tx add "Task title" \
 | `--tag <tags>` | `-t` | none | Comma-separated list |
 | `--priority <level>` | `-P` | `normal` | `low`, `normal`, `high`, `urgent` |
 | `--due <YYYY-MM-DD>` | — | none | Due at 23:59:59 local time |
+| `--estimate <minutes>` | — | none | Estimated effort in minutes |
+| `--template <name>` | — | none | Apply a built-in task template |
 
 `tx add` prints the full task UUID.
+
+### Templates
+
+```bash
+tx add --template review
+tx add "Review authentication" --template review
+tx add --template bug --priority low
+```
+
+Available templates are `review`, `bug`, `feature`, `test`, and `chore`. A template supplies a default title, priority, tags, description, and estimate. Explicit flags override template values, and explicit `--tag` values are merged with template tags. `--template review` can be used without a title; otherwise a title is required.
 
 ## Listing and filtering
 
@@ -110,6 +132,8 @@ tx list --all
 | `--status <status>` | `todo`, `doing`, or `done` |
 | `--search <text>` | Case-insensitive title/description match |
 | `--all` | Include tasks from every branch |
+| `--view <name>` | Apply a saved view |
+| `--save <name>` | Save the current filter as a view |
 
 Output is one task per line:
 
@@ -119,6 +143,20 @@ Output is one task per line:
 
 Columns are: short ID, status, priority, project, title.
 
+### Saved views
+
+```bash
+tx view save api --project api --tag backend
+tx view list
+tx view show api
+tx view run api
+tx list --view api
+tx list --save todo --status todo
+tx view delete api
+```
+
+Saved views live in `config.toml` under `[views.<name>]`. `tx list --view <name>` runs a saved filter, and flags passed alongside it override the saved values. `tx list --save <name>` saves the current filter. `tx view run <name>` is equivalent to `tx list --view <name>`, while `tx view show <name>` prints the saved filter definition.
+
 ## Editing tasks
 
 ```bash
@@ -127,6 +165,7 @@ tx edit <id> --description "More detail"
 tx edit <id> --priority high
 tx edit <id> --project backend
 tx edit <id> --due 2026-12-31
+tx edit <id> --estimate 90
 tx edit <id> --add-tag urgent
 tx edit <id> --remove-tag stale
 ```
@@ -141,7 +180,31 @@ tx complete <id>
 tx reopen <id>
 ```
 
-Completing a task records `completed_at`; reopening clears it and returns the task to `todo`.
+Completing a task records `completed_at`; reopening clears it and returns the task to `todo`. Completing or deleting a task automatically stops its running timer.
+
+Bulk completion closes every open task due on or before a date:
+
+```bash
+tx complete --done-before 2026-10-31
+tx complete --done-before 2026-10-31 --all
+tx complete --done-before 2026-10-31 --force
+```
+
+Bulk completion uses the current branch unless `--all` is passed. Parents with open subtasks are skipped unless `--force` is used. The whole batch is saved as one undo step.
+
+## Time tracking
+
+```bash
+tx add "Write migration" --estimate 45
+tx start <id>
+tx stop
+tx time
+tx time <id>
+```
+
+`tx start` records a local session and moves the task to `doing`. Only one timer can run at a time; `tx stop` closes it. Completion and deletion also close an active session.
+
+`tx time` lists tasks with tracked sessions and their estimate versus actual time. `tx time <id>` shows the estimate, actual total, and each session's start/end timestamps. Running sessions are marked `active` and count toward the total. Estimates and sessions stay local in `tasks.json`.
 
 ## Searching, today, and stats
 
@@ -154,6 +217,31 @@ tx stats
 - `search` matches title, description, and tags (case-insensitive).
 - `today` prints `OVERDUE` or `TODAY` followed by the short ID and title.
 - `stats` prints `tasks=… done=… open=… overdue=… branches=… projects=…`.
+
+## Duplicate detection
+
+```bash
+tx duplicates
+tx duplicates --threshold 0.8
+tx duplicates --all
+```
+
+`tx duplicates` compares open task titles and prints similar pairs with a score. The default threshold is `0.72`; use `--all` to compare across branches. `tx add` also prints a warning when a new title looks similar to an existing open task, but still creates the task.
+
+## Reminders and calendar
+
+```bash
+tx remind
+tx remind --days 7
+tx remind --notify
+tx export --format ics > tasklynx.ics
+```
+
+`tx remind` lists open tasks that are overdue or due within the next N days (default 3). Rows are labeled `OVERDUE`, `TODAY`, or `UPCOMING` and show the short ID, due date, priority, and title. Completed tasks and tasks without a due date are skipped.
+
+`--notify` sends one desktop notification after printing the list. It is opt-in and daemon-free: Linux uses `notify-send`, macOS uses `osascript`, and other platforms report that notifications are unsupported. Use `tx remind` without `--notify` if a notification helper is unavailable.
+
+`tx export --format ics` writes a standards-based iCalendar file for tasks with due dates. Each task becomes an all-day event, recurring tasks include an `RRULE`, and completed tasks are marked `STATUS:COMPLETED`.
 
 ## Choosing the next task
 
@@ -307,7 +395,28 @@ tx ai breakdown <id> --apply --limit 5
 - Existing open tasks on the current branch are included as context, up to `ai.max_context_tasks`.
 - With `redact = true`, common API keys, tokens, passwords, and private keys are redacted before the prompt is sent.
 
-AI output is treated as untrusted: titles, priorities, dates, tags, and dependency indexes are validated before tasks are shown or created. Tasklynx never auto-completes, deletes, or commits anything based on AI output.
+### Triage, standup, review, and ask
+
+```bash
+tx ai triage
+tx ai triage --limit 3 --project api
+tx ai triage --include-blocked
+tx ai triage --offline
+tx ai standup --days 1
+tx ai review feature-auth --days 14
+tx ai ask "What is blocking the release?"
+```
+
+- `tx ai triage` ranks open work. With no provider configured, or with `--offline`, it uses the same deterministic ordering as `tx next`.
+- `--include-blocked` lets triage consider blocked tasks and explains what blocks them.
+- `tx ai standup` summarizes recent completed work plus current open and blocked work.
+- `tx ai review [branch]` summarizes a branch, defaulting to the current branch.
+- `tx ai ask "<question>"` answers from the selected open-task context and says when the answer is not present.
+- `--days`, `--project`, `--limit`, and `--no-description` control context and output size.
+- AI commands print the selected provider and model to stderr.
+- `TASKLYNX_AI_LOG=1` logs prompt/response byte sizes and provider latency to stderr; prompt contents are never logged.
+
+AI output is treated as untrusted: titles, priorities, dates, tags, dependency indexes, task IDs, report structure, and answer shape are validated before use. Tasklynx never auto-completes, deletes, or commits anything based on AI output.
 
 ### Doctor
 
@@ -333,10 +442,11 @@ A branch can only be deleted when it is not current and has no tasks. The curren
 ```bash
 tx export --format json
 tx export --format md
+tx export --format ics > tasklynx.ics
 tx export > tasks.json
 ```
 
-`--format` defaults to `json`. Any value other than `md` produces JSON.
+`--format` defaults to `json`. Supported values are `json`, `md`, and `ics`; any other value is rejected. ICS export includes every task with a due date, including completed tasks.
 
 ## Importing / Backup / Restore
 
@@ -368,6 +478,16 @@ Defaults come from `config.toml`. The server exposes:
 | `POST` | `/api/tasks` | Create a task from a JSON body |
 | `PUT` | `/api/tasks/{id}` | Replace a task |
 | `DELETE` | `/api/tasks/{id}` | Delete a task |
+| `POST` | `/api/ai/triage` | Preview AI or offline task triage |
+| `POST` | `/api/ai/plan` | Preview an AI plan |
+| `POST` | `/api/ai/apply-plan` | Apply a previewed AI plan |
+| `POST` | `/api/ai/breakdown` | Preview an AI subtask breakdown |
+| `POST` | `/api/ai/apply-breakdown` | Apply a previewed breakdown |
+| `POST` | `/api/ai/standup` | Generate a standup report |
+| `POST` | `/api/ai/review` | Generate a branch review |
+| `POST` | `/api/ai/ask` | Ask a question about task context |
+
+The dashboard includes an **AI copilot** panel for triage, plan/breakdown previews with apply controls, standups, branch reviews, and grounded questions. Apply calls use the previewed draft rather than regenerating it.
 
 The server automatically sets security headers (`Content-Security-Policy`, `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer`) and enforces a 2MB request body limit. There is no authentication; keep the bind address on `127.0.0.1` unless behind a secure reverse proxy.
 
@@ -382,6 +502,9 @@ Opens an interactive terminal Kanban board:
 - `j` / `k` or `↓` / `↑` — navigate tasks within the active column.
 - `Space` / `Enter` — advance task status (`Todo` → `Doing` → `Done`).
 - `x` — toggle complete / reopen.
+- `a` — preview an AI breakdown for the selected task.
+- `t` — preview AI or offline triage.
+- `c` — clear the AI detail panel.
 - `b` — cycle through active branches.
 - `q` / `Esc` — save changes and quit.
 

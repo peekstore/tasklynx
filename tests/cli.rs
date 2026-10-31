@@ -99,6 +99,11 @@ fn help_and_version() {
         "add",
         "list",
         "doing",
+        "start",
+        "stop",
+        "time",
+        "view",
+        "duplicates",
         "complete",
         "reopen",
         "delete",
@@ -116,6 +121,7 @@ fn help_and_version() {
         "search",
         "today",
         "agenda",
+        "remind",
         "stats",
         "branch",
         "export",
@@ -256,6 +262,24 @@ fn export_and_config() {
     let md = env.ok(&["export", "--format", "md"]);
     assert!(md.contains("# Tasklynx"));
     assert!(md.contains("**Exported task**"));
+
+    let due = (Local::now().date_naive() + Duration::days(2))
+        .format("%Y-%m-%d")
+        .to_string();
+    let ics_date = (Local::now().date_naive() + Duration::days(2))
+        .format("%Y%m%d")
+        .to_string();
+    env.ok(&["add", "Calendar task", "--due", due.as_str()]);
+    let ics = env.ok(&["export", "--format", "ics"]);
+    assert!(ics.contains("BEGIN:VCALENDAR"), "{ics}");
+    assert!(ics.contains("SUMMARY:Calendar task"), "{ics}");
+    assert!(
+        ics.contains(&format!("DTSTART;VALUE=DATE:{ics_date}")),
+        "{ics}"
+    );
+    assert!(!ics.contains("Exported task"), "{ics}");
+    let err = env.fail(&["export", "--format", "bad"]);
+    assert!(err.contains("unsupported export format"), "{err}");
 
     let path = env.ok(&["config", "init"]).trim().to_string();
     let normalized = path.replace('\\', "/");
@@ -443,6 +467,321 @@ fn agenda_lists_upcoming_overdue_and_recurring() {
     assert!(out.contains("OVERDUE"), "{out}");
     assert!(out.contains("Upcoming task"), "{out}");
     assert!(out.contains("Old task"), "{out}");
+}
+
+#[test]
+fn remind_lists_due_tasks_and_honors_window() {
+    let env = TestEnv::new("remind");
+    env.ok(&["init"]);
+
+    let today = Local::now().date_naive();
+    let yesterday = (today - Duration::days(1)).format("%Y-%m-%d").to_string();
+    let today_str = today.format("%Y-%m-%d").to_string();
+    let soon = (today + Duration::days(2)).format("%Y-%m-%d").to_string();
+    let far = (today + Duration::days(10)).format("%Y-%m-%d").to_string();
+
+    env.ok(&["add", "Overdue reminder", "--due", yesterday.as_str()]);
+    env.ok(&["add", "Today reminder", "--due", today_str.as_str()]);
+    env.ok(&["add", "Soon reminder", "--due", soon.as_str()]);
+    env.ok(&["add", "Far reminder", "--due", far.as_str()]);
+    env.ok(&["add", "No due reminder"]);
+    let done = env
+        .ok(&["add", "Done reminder", "--due", today_str.as_str()])
+        .trim()
+        .to_string();
+    env.ok(&["complete", &done[..8]]);
+
+    let out = env.ok(&["remind", "--days", "3"]);
+    assert!(out.contains("OVERDUE"), "{out}");
+    assert!(out.contains("TODAY"), "{out}");
+    assert!(out.contains("UPCOMING"), "{out}");
+    assert!(out.contains("Overdue reminder"), "{out}");
+    assert!(out.contains("Today reminder"), "{out}");
+    assert!(out.contains("Soon reminder"), "{out}");
+    assert!(!out.contains("Far reminder"), "{out}");
+    assert!(!out.contains("No due reminder"), "{out}");
+    assert!(!out.contains("Done reminder"), "{out}");
+
+    let today_only = env.ok(&["remind", "--days", "0"]);
+    assert!(today_only.contains("Overdue reminder"), "{today_only}");
+    assert!(today_only.contains("Today reminder"), "{today_only}");
+    assert!(!today_only.contains("Soon reminder"), "{today_only}");
+
+    let err = env.fail(&["remind", "--days", "99999"]);
+    assert!(err.contains("--days must be between 0 and 3650"), "{err}");
+}
+
+#[cfg(target_os = "linux")]
+#[test]
+fn remind_sends_desktop_notification() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let env = TestEnv::new("remind-notify");
+    env.ok(&["init"]);
+    let today = Local::now().date_naive().format("%Y-%m-%d").to_string();
+    env.ok(&["add", "Notify me", "--due", today.as_str()]);
+
+    let bin = env.root.join("bin");
+    std::fs::create_dir_all(&bin).unwrap();
+    let script = bin.join("notify-send");
+    std::fs::write(
+        &script,
+        "#!/bin/sh\nprintf '%s\\n' \"$@\" > \"$HOME/notify.args\"\n",
+    )
+    .unwrap();
+    let mut permissions = std::fs::metadata(&script).unwrap().permissions();
+    permissions.set_mode(0o755);
+    std::fs::set_permissions(&script, permissions).unwrap();
+
+    let path = format!(
+        "{}:{}",
+        bin.display(),
+        std::env::var("PATH").unwrap_or_default()
+    );
+    let out = env
+        .command()
+        .env("PATH", path)
+        .args(["remind", "--notify"])
+        .output()
+        .unwrap();
+    assert!(
+        out.status.success(),
+        "remind --notify failed:\n{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let notification = std::fs::read_to_string(env.root.join("notify.args")).unwrap();
+    assert!(
+        notification.contains("Tasklynx: 1 task(s) due"),
+        "{notification}"
+    );
+    assert!(notification.contains("Notify me"), "{notification}");
+    assert!(
+        String::from_utf8_lossy(&out.stderr).contains("notification sent"),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+}
+
+#[test]
+fn time_tracking_flow() {
+    let env = TestEnv::new("time");
+    env.ok(&["init"]);
+    let id = env
+        .ok(&["add", "Timed task", "--estimate", "60"])
+        .trim()
+        .to_string();
+    let prefix = &id[..8];
+
+    let started = env.ok(&["start", prefix]);
+    assert!(started.contains("started"), "{started}");
+    assert!(started.contains("Timed task"), "{started}");
+    assert!(env
+        .ok(&["list", "--status", "doing"])
+        .contains("Timed task"));
+
+    let active = env.ok(&["time"]);
+    assert!(active.contains("ACTIVE"), "{active}");
+    assert!(active.contains("Timed task"), "{active}");
+    assert!(active.contains("est 1h"), "{active}");
+
+    let detail = env.ok(&["time", prefix]);
+    assert!(detail.contains("estimate  1h"), "{detail}");
+    assert!(detail.contains("actual"), "{detail}");
+    assert!(detail.contains("-> active"), "{detail}");
+
+    let err = env.fail(&["start", prefix]);
+    assert!(err.contains("timer already running"), "{err}");
+
+    let stopped = env.ok(&["stop"]);
+    assert!(stopped.contains("stopped"), "{stopped}");
+    assert!(stopped.contains("Timed task"), "{stopped}");
+
+    let after = env.ok(&["time", prefix]);
+    assert!(after.contains("estimate  1h"), "{after}");
+    assert!(!after.contains("-> active"), "{after}");
+
+    let err = env.fail(&["stop"]);
+    assert!(err.contains("no running timer"), "{err}");
+
+    env.ok(&["start", prefix]);
+    env.ok(&["complete", prefix]);
+    let completed = env.ok(&["time", prefix]);
+    assert!(!completed.contains("-> active"), "{completed}");
+    let err = env.fail(&["start", prefix]);
+    assert!(err.contains("completed task"), "{err}");
+
+    let duplicate = env.ok(&["duplicate", prefix]).trim().to_string();
+    let duplicate_time = env.ok(&["time", &duplicate[..8]]);
+    assert!(
+        duplicate_time.contains("no time entries"),
+        "{duplicate_time}"
+    );
+}
+
+#[test]
+fn templates_apply_defaults_and_allow_overrides() {
+    let env = TestEnv::new("templates");
+    env.ok(&["init"]);
+
+    let id = env.ok(&["add", "--template", "review"]).trim().to_string();
+    assert_eq!(id.len(), 36);
+    let list = env.ok(&["list"]);
+    assert!(list.contains("Review changes"), "{list}");
+    assert!(list.contains("high"), "{list}");
+    assert!(list.contains("default"), "{list}");
+    assert!(env
+        .ok(&["list", "--tag", "review"])
+        .contains("Review changes"));
+    assert!(env
+        .ok(&["export", "--format", "json"])
+        .contains("Review checklist"));
+
+    let custom = env
+        .ok(&[
+            "add",
+            "Custom audit",
+            "--template",
+            "review",
+            "--priority",
+            "low",
+            "--tag",
+            "custom",
+        ])
+        .trim()
+        .to_string();
+    assert_eq!(custom.len(), 36);
+    let custom_list = env.ok(&["list", "--tag", "custom"]);
+    assert!(custom_list.contains("Custom audit"), "{custom_list}");
+    assert!(custom_list.contains("low"), "{custom_list}");
+
+    let err = env.fail(&["add", "--template", "missing"]);
+    assert!(err.contains("unknown template"), "{err}");
+    assert!(err.contains("review"), "{err}");
+    let err = env.fail(&["add"]);
+    assert!(err.contains("title is required"), "{err}");
+}
+
+#[test]
+fn saved_views_filter_run_and_delete() {
+    let env = TestEnv::new("views");
+    env.ok(&["init"]);
+    env.ok(&["add", "API task", "--project", "api", "--tag", "backend"]);
+    env.ok(&["add", "Web task", "--project", "web"]);
+
+    env.ok(&["view", "save", "api", "--project", "api"]);
+    let list = env.ok(&["list", "--view", "api"]);
+    assert!(list.contains("API task"), "{list}");
+    assert!(!list.contains("Web task"), "{list}");
+    let run = env.ok(&["view", "run", "api"]);
+    assert!(run.contains("API task"), "{run}");
+    assert!(!run.contains("Web task"), "{run}");
+
+    let views = env.ok(&["view", "list"]);
+    assert!(views.contains("api"), "{views}");
+    assert!(views.contains("project=api"), "{views}");
+    let show = env.ok(&["view", "show", "api"]);
+    assert!(show.contains("project=api"), "{show}");
+
+    env.ok(&["list", "--save", "todo", "--status", "todo"]);
+    let views = env.ok(&["view", "list"]);
+    assert!(views.contains("todo"), "{views}");
+    let todo = env.ok(&["list", "--view", "todo"]);
+    assert!(todo.contains("API task"), "{todo}");
+    assert!(todo.contains("Web task"), "{todo}");
+
+    env.ok(&["view", "delete", "api"]);
+    let err = env.fail(&["list", "--view", "api"]);
+    assert!(err.contains("view not found"), "{err}");
+    let err = env.fail(&["view", "delete", "api"]);
+    assert!(err.contains("view not found"), "{err}");
+}
+
+#[test]
+fn bulk_complete_respects_due_dates_and_branches() {
+    let env = TestEnv::new("bulk-complete");
+    env.ok(&["init"]);
+    let today = Local::now().date_naive().format("%Y-%m-%d").to_string();
+    let future = (Local::now().date_naive() + Duration::days(10))
+        .format("%Y-%m-%d")
+        .to_string();
+
+    env.ok(&["add", "Old task", "--due", "2000-01-01"]);
+    env.ok(&["add", "Today task", "--due", today.as_str()]);
+    env.ok(&["add", "Future task", "--due", future.as_str()]);
+    env.ok(&["add", "No due task"]);
+    env.ok(&["branch", "create", "feature"]);
+    env.ok(&["branch", "switch", "feature"]);
+    env.ok(&["add", "Other branch task", "--due", "2000-01-01"]);
+    env.ok(&["branch", "switch", "main"]);
+
+    let err = env.fail(&["complete"]);
+    assert!(err.contains("provide a task id"), "{err}");
+
+    let out = env.ok(&["complete", "--done-before", today.as_str()]);
+    assert!(out.contains("completed 2 task(s)"), "{out}");
+    let todo = env.ok(&["list", "--status", "todo"]);
+    assert!(todo.contains("Future task"), "{todo}");
+    assert!(todo.contains("No due task"), "{todo}");
+    assert!(!todo.contains("Old task"), "{todo}");
+    let done = env.ok(&["list", "--status", "done"]);
+    assert!(done.contains("Old task"), "{done}");
+    assert!(done.contains("Today task"), "{done}");
+    assert!(!done.contains("Other branch task"), "{done}");
+
+    env.ok(&["undo"]);
+    let out = env.ok(&["complete", "--done-before", today.as_str(), "--all"]);
+    assert!(out.contains("completed 3 task(s)"), "{out}");
+    let done = env.ok(&["list", "--status", "done", "--all"]);
+    assert!(done.contains("Other branch task"), "{done}");
+}
+
+#[test]
+fn bulk_complete_skips_parents_with_open_subtasks() {
+    let env = TestEnv::new("bulk-parent");
+    env.ok(&["init"]);
+    let parent = env
+        .ok(&["add", "Parent task", "--due", "2000-01-01"])
+        .trim()
+        .to_string();
+    env.ok(&["subtask", &parent[..8], "Child task"]);
+
+    let out = env.ok(&["complete", "--done-before", "2000-01-02"]);
+    assert!(out.contains("skipped 1 task(s)"), "{out}");
+    assert!(env.ok(&["list"]).contains("Parent task"));
+
+    let out = env.ok(&["complete", "--done-before", "2000-01-02", "--force"]);
+    assert!(out.contains("completed 1 task(s)"), "{out}");
+    assert!(env
+        .ok(&["list", "--status", "done"])
+        .contains("Parent task"));
+}
+
+#[test]
+fn duplicate_detection_warns_and_lists_similar_titles() {
+    let env = TestEnv::new("duplicates");
+    env.ok(&["init"]);
+    env.ok(&["add", "Fix login bug"]);
+
+    let out = env.run(&["add", "Fix the login issue"]);
+    assert!(
+        out.status.success(),
+        "add failed:\n{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(stderr.contains("similar task"), "{stderr}");
+    assert!(stderr.contains("100% match"), "{stderr}");
+
+    let duplicates = env.ok(&["duplicates"]);
+    assert!(duplicates.contains("Fix login bug"), "{duplicates}");
+    assert!(duplicates.contains("Fix the login issue"), "{duplicates}");
+    assert!(duplicates.contains("1.00"), "{duplicates}");
+
+    let err = env.fail(&["duplicates", "--threshold", "2"]);
+    assert!(
+        err.contains("--threshold must be between 0.0 and 1.0"),
+        "{err}"
+    );
 }
 
 #[test]
@@ -837,7 +1176,15 @@ fn ai_commands_available_offline() {
     env.ok(&["init"]);
 
     let help = env.ok(&["ai", "--help"]);
-    for command in ["plan", "breakdown", "doctor"] {
+    for command in [
+        "plan",
+        "breakdown",
+        "triage",
+        "standup",
+        "review",
+        "ask",
+        "doctor",
+    ] {
         assert!(help.contains(command), "ai help is missing {command}");
     }
     let plan_help = env.ok(&["ai", "plan", "--help"]);
@@ -850,6 +1197,31 @@ fn ai_commands_available_offline() {
             breakdown_help.contains(flag),
             "ai breakdown help is missing {flag}"
         );
+    }
+    let triage_help = env.ok(&["ai", "triage", "--help"]);
+    for flag in ["--limit", "--project", "--include-blocked", "--offline"] {
+        assert!(
+            triage_help.contains(flag),
+            "ai triage help is missing {flag}"
+        );
+    }
+    let standup_help = env.ok(&["ai", "standup", "--help"]);
+    for flag in ["--days", "--project", "--limit", "--no-description"] {
+        assert!(
+            standup_help.contains(flag),
+            "ai standup help is missing {flag}"
+        );
+    }
+    let review_help = env.ok(&["ai", "review", "--help"]);
+    for flag in ["--days", "--project", "--limit", "--no-description"] {
+        assert!(
+            review_help.contains(flag),
+            "ai review help is missing {flag}"
+        );
+    }
+    let ask_help = env.ok(&["ai", "ask", "--help"]);
+    for flag in ["--project", "--branch", "--limit", "--no-description"] {
+        assert!(ask_help.contains(flag), "ai ask help is missing {flag}");
     }
 
     let config = env.ok(&["config", "show"]);
@@ -866,6 +1238,62 @@ fn ai_commands_available_offline() {
     assert!(error.contains("AI provider is not configured"), "{error}");
     let error = env.fail(&["ai", "breakdown", prefix]);
     assert!(error.contains("AI provider is not configured"), "{error}");
+    let error = env.fail(&["ai", "standup"]);
+    assert!(error.contains("AI provider is not configured"), "{error}");
+    let error = env.fail(&["ai", "review"]);
+    assert!(error.contains("AI provider is not configured"), "{error}");
+    let error = env.fail(&["ai", "ask", "What should I do next?"]);
+    assert!(error.contains("AI provider is not configured"), "{error}");
+}
+
+#[test]
+fn offline_triage_ranks_and_filters_tasks() {
+    let env = TestEnv::new("ai-triage-offline");
+    env.ok(&["init"]);
+    let normal = env.ok(&["add", "Normal task"]).trim().to_string();
+    let urgent = env
+        .ok(&["add", "Urgent task", "--priority", "urgent"])
+        .trim()
+        .to_string();
+    let doing = env
+        .ok(&["add", "Doing task", "--priority", "high"])
+        .trim()
+        .to_string();
+    env.ok(&["doing", &doing[..8]]);
+    let blocker = env.ok(&["add", "Blocker"]).trim().to_string();
+    let blocked = env
+        .ok(&["add", "Blocked task", "--priority", "urgent"])
+        .trim()
+        .to_string();
+    env.ok(&["block", &blocked[..8], "--by", &blocker[..8]]);
+
+    let out = env.ok(&["ai", "triage"]);
+    assert!(out.contains("offline triage"), "{out}");
+    assert!(out.contains("Doing task"), "{out}");
+    assert!(out.contains("Urgent task"), "{out}");
+    assert!(out.contains(&urgent[..8]), "{out}");
+    assert!(out.contains("Normal task"), "{out}");
+    assert!(out.contains("Blocker"), "{out}");
+    assert!(!out.contains("Blocked task"), "{out}");
+    assert!(out.contains(&normal[..8]), "{out}");
+
+    let out = env.ok(&["ai", "triage", "--limit", "1"]);
+    assert!(out.contains("Urgent task"), "{out}");
+    assert!(!out.contains("Doing task"), "{out}");
+
+    let out = env.ok(&["ai", "triage", "--include-blocked"]);
+    assert!(out.contains("Blocked task"), "{out}");
+    assert!(out.contains("blocked by 1"), "{out}");
+
+    let out = env.ok(&["ai", "triage", "--offline", "--project", "default"]);
+    assert!(out.contains("offline triage"), "{out}");
+    assert!(out.contains("Urgent task"), "{out}");
+    assert!(!out.contains("Blocked task"), "{out}");
+
+    write_ai_config(&env, "http://127.0.0.1:9");
+    let out = env.ok(&["ai", "triage", "--offline"]);
+    assert!(out.contains("offline triage"), "{out}");
+    assert!(out.contains("Urgent task"), "{out}");
 }
 
 fn write_ai_config(env: &TestEnv, endpoint: &str) {
@@ -1019,4 +1447,71 @@ fn ai_plan_and_breakdown_preview_and_apply() {
     let tree = env.ok(&["tree", &parent_id[..8]]);
     assert!(!tree.contains("Write migration"), "{tree}");
     assert!(!tree.contains("Add tests"), "{tree}");
+}
+
+#[cfg(feature = "ai")]
+#[test]
+fn ai_triage_reports_and_ask_use_provider() {
+    let env = TestEnv::new("ai-context");
+    env.ok(&["init"]);
+    let id = env
+        .ok(&["add", "Fix login bug", "--priority", "urgent"])
+        .trim()
+        .to_string();
+
+    let triage_response = serde_json::json!({
+        "summary": "Fix the login bug first.",
+        "picks": [{"id": &id[..8], "reason": "urgent and blocking users"}]
+    })
+    .to_string();
+    let (endpoint, handle) = mock_ollama(&triage_response);
+    write_ai_config(&env, &endpoint);
+    let out = env.ok(&["ai", "triage"]);
+    assert!(out.contains("Fix the login bug first."), "{out}");
+    assert!(out.contains("Fix login bug"), "{out}");
+    assert!(out.contains("urgent and blocking users"), "{out}");
+    handle.join().unwrap();
+
+    let standup_response = serde_json::json!({
+        "summary": "One urgent task is open.",
+        "sections": [{"title": "Doing", "items": ["Fix login bug"]}]
+    })
+    .to_string();
+    let (endpoint, handle) = mock_ollama(&standup_response);
+    write_ai_config(&env, &endpoint);
+    let out = env.ok(&["ai", "standup", "--days", "1"]);
+    assert!(out.contains("One urgent task is open."), "{out}");
+    assert!(out.contains("Doing"), "{out}");
+    assert!(out.contains("- Fix login bug"), "{out}");
+    handle.join().unwrap();
+
+    let review_response = serde_json::json!({
+        "summary": "The branch has one open task.",
+        "sections": [{"title": "Open", "items": ["Fix login bug"]}]
+    })
+    .to_string();
+    let (endpoint, handle) = mock_ollama(&review_response);
+    write_ai_config(&env, &endpoint);
+    let out = env.ok(&["ai", "review", "main", "--days", "7"]);
+    assert!(out.contains("The branch has one open task."), "{out}");
+    assert!(out.contains("- Fix login bug"), "{out}");
+    handle.join().unwrap();
+
+    let ask_response = serde_json::json!({"answer": "Start with Fix login bug."}).to_string();
+    let (endpoint, handle) = mock_ollama(&ask_response);
+    write_ai_config(&env, &endpoint);
+    let out = env.ok(&["ai", "ask", "What should I do next?"]);
+    assert!(out.contains("Start with Fix login bug."), "{out}");
+    handle.join().unwrap();
+
+    let bad_response = serde_json::json!({
+        "summary": "bad",
+        "picks": [{"id": "00000000", "reason": "missing"}]
+    })
+    .to_string();
+    let (endpoint, handle) = mock_ollama(&bad_response);
+    write_ai_config(&env, &endpoint);
+    let error = env.fail(&["ai", "triage"]);
+    assert!(error.contains("unknown task id"), "{error}");
+    handle.join().unwrap();
 }

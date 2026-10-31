@@ -1,4 +1,6 @@
-use crate::model::{ProjectData, Repeat, Status};
+use crate::ai;
+use crate::config;
+use crate::model::{ProjectData, Repeat, Status, Task};
 use crate::store;
 use anyhow::Result;
 use crossterm::{
@@ -11,7 +13,7 @@ use ratatui::{
     layout::{Constraint, Direction, Layout},
     style::{Color, Modifier, Style},
     text::{Line, Span},
-    widgets::{Block, Borders, List, ListItem, Paragraph},
+    widgets::{Block, Borders, List, ListItem, Paragraph, Wrap},
     Terminal,
 };
 use std::io::stdout;
@@ -26,6 +28,7 @@ pub fn run(data: &mut ProjectData) -> Result<()> {
     let mut active_col: usize = 0; // 0: Todo, 1: Doing, 2: Done
     let mut selected_idx: [usize; 3] = [0, 0, 0];
     let mut dirty = false;
+    let mut ai_detail: Option<String> = None;
     let undo_base = data.clone();
 
     let statuses = [Status::Todo, Status::Doing, Status::Done];
@@ -38,6 +41,7 @@ pub fn run(data: &mut ProjectData) -> Result<()> {
                     [
                         Constraint::Length(3),
                         Constraint::Min(5),
+                        Constraint::Length(9),
                         Constraint::Length(3),
                     ]
                     .as_ref(),
@@ -164,14 +168,41 @@ pub fn run(data: &mut ProjectData) -> Result<()> {
                 f.render_widget(list, col_chunks[col_i]);
             }
 
+            // Detail / AI panel
+            let selected = data
+                .tasks
+                .iter()
+                .filter(|task| task.status == statuses[active_col] && task.branch == data.current_branch)
+                .nth(selected_idx[active_col]);
+            let mut detail = match selected {
+                Some(task) => selected_task_detail(task, data),
+                None => "No task selected.".to_string(),
+            };
+            if let Some(extra) = &ai_detail {
+                detail.push_str("\n\n");
+                detail.push_str(extra);
+            }
+            f.render_widget(
+                Paragraph::new(detail)
+                    .wrap(Wrap { trim: false })
+                    .style(Style::default().fg(Color::Gray))
+                    .block(
+                        Block::default()
+                            .borders(Borders::ALL)
+                            .border_style(Style::default().fg(Color::DarkGray))
+                            .title(" details / ai "),
+                    ),
+                chunks[2],
+            );
+
             // Footer
             let footer_text =
-                " [h/l] Switch Column  │  [j/k] Select Task  │  [Space] Advance  │  [x] Toggle Done  │  [b] Branch  │  [q] Quit ";
+                " [h/l] Column  │  [j/k] Select  │  [Space] Advance  │  [x] Done  │  [a] AI breakdown  │  [t] AI triage  │  [c] Clear  │  [b] Branch  │  [q] Quit ";
             f.render_widget(
                 Paragraph::new(footer_text)
                     .style(Style::default().fg(Color::DarkGray))
                     .block(Block::default().borders(Borders::ALL).title(" controls ")),
-                chunks[2],
+                chunks[3],
             );
         })?;
 
@@ -270,6 +301,27 @@ pub fn run(data: &mut ProjectData) -> Result<()> {
                                 }
                             }
                         }
+                        KeyCode::Char('a') => {
+                            if let Some(id) = selected_task_id(
+                                data,
+                                &statuses[active_col],
+                                selected_idx[active_col],
+                            ) {
+                                ai_detail = Some(match ai_breakdown_preview(data, id) {
+                                    Ok(text) => text,
+                                    Err(error) => format!("AI breakdown failed: {error}"),
+                                });
+                            }
+                        }
+                        KeyCode::Char('t') => {
+                            ai_detail = Some(match ai_triage_preview(data) {
+                                Ok(text) => text,
+                                Err(error) => format!("AI triage failed: {error}"),
+                            });
+                        }
+                        KeyCode::Char('c') => {
+                            ai_detail = None;
+                        }
                         KeyCode::Char('b') if !data.branches.is_empty() => {
                             // Cycle through branches
                             let cur_idx = data
@@ -297,4 +349,137 @@ pub fn run(data: &mut ProjectData) -> Result<()> {
     }
 
     Ok(())
+}
+
+fn selected_task_id(data: &ProjectData, status: &Status, index: usize) -> Option<uuid::Uuid> {
+    data.tasks
+        .iter()
+        .filter(|task| &task.status == status && task.branch == data.current_branch)
+        .nth(index)
+        .map(|task| task.id)
+}
+
+fn selected_task_detail(task: &Task, data: &ProjectData) -> String {
+    let id = task.id.to_string();
+    let due = task
+        .due
+        .map(|due| {
+            due.with_timezone(&chrono::Local)
+                .format("%Y-%m-%d")
+                .to_string()
+        })
+        .unwrap_or_else(|| "none".into());
+    let blockers = task
+        .blocked_by
+        .iter()
+        .filter(|id| {
+            data.tasks
+                .iter()
+                .any(|candidate| candidate.id == **id && candidate.status != Status::Done)
+        })
+        .count();
+    let mut text = format!(
+        "{}  {}\nid: {}\nstatus: {} · priority: {} · project: {}\ndue: {} · branch: {} · blockers: {}\n",
+        &id[..8],
+        task.title,
+        id,
+        task.status,
+        task.priority,
+        task.project,
+        due,
+        task.branch,
+        blockers
+    );
+    if !task.description.trim().is_empty() {
+        let description: String = task.description.chars().take(400).collect();
+        text.push_str(&description.replace(['\r', '\n'], " "));
+    }
+    text
+}
+
+fn ai_breakdown_preview(data: &ProjectData, id: uuid::Uuid) -> Result<String> {
+    let parent = store::find(data, &id.to_string())?.clone();
+    let children: Vec<Task> = data
+        .tasks
+        .iter()
+        .filter(|task| task.parent == Some(parent.id))
+        .cloned()
+        .collect();
+    let config = config::load()?;
+    let provider = ai::provider(&config.ai)?;
+    let plan = ai::request_breakdown(
+        provider.as_ref(),
+        &config.ai,
+        &parent,
+        &children,
+        10,
+        config.ai.include_descriptions,
+    )?;
+    let tasks = ai::breakdown_tasks(&parent, &plan)?;
+    let mut text = format!(
+        "AI breakdown · {}\nparent: {} {}\n",
+        provider.name(),
+        &parent.id.to_string()[..8],
+        parent.title
+    );
+    for (index, task) in tasks.iter().enumerate() {
+        text.push_str(&format!(
+            "{}. [{}] {}\n",
+            index + 1,
+            task.priority,
+            task.title
+        ));
+    }
+    text.push_str("preview only; use `tx ai breakdown <id> --apply` to create");
+    Ok(text)
+}
+
+fn ai_triage_preview(data: &ProjectData) -> Result<String> {
+    let config = config::load()?;
+    let request = ai::TriageRequest {
+        tasks: &data.tasks,
+        branch: &data.current_branch,
+        project: None,
+        limit: 5,
+        include_blocked: false,
+        include_descriptions: config.ai.include_descriptions,
+    };
+    let no_candidates =
+        ai::triage_candidate_count(&data.tasks, &data.current_branch, None, false) == 0;
+    let (provider, summary, picks) = if no_candidates
+        || matches!(config.ai.provider_kind()?, ai::ProviderKind::None)
+    {
+        (
+            "offline".to_string(),
+            if no_candidates {
+                "no eligible tasks to triage".to_string()
+            } else {
+                "offline triage".to_string()
+            },
+            ai::deterministic_triage(request),
+        )
+    } else {
+        let provider = ai::provider(&config.ai)?;
+        let response = ai::request_triage(provider.as_ref(), &config.ai, request)?;
+        let picks = ai::resolve_triage(&response, &data.tasks, &data.current_branch, None, false)?;
+        (provider.name().to_string(), response.summary, picks)
+    };
+    let mut text = format!("AI triage · {provider}\n{summary}\n");
+    if picks.is_empty() {
+        text.push_str("no eligible tasks");
+    }
+    for (index, pick) in picks.iter().enumerate() {
+        if let Ok(task) = store::find(data, &pick.task_id.to_string()) {
+            text.push_str(&format!(
+                "{}. {}  [{}] {}  {}\n   {}\n",
+                index + 1,
+                &task.id.to_string()[..8],
+                task.priority,
+                task.project,
+                task.title,
+                pick.reason
+            ));
+        }
+    }
+    Ok(text)
 }

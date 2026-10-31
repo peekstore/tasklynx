@@ -190,7 +190,8 @@ pub fn delete_to_trash(data: &mut ProjectData, id: &str) -> Result<uuid::Uuid> {
         .iter()
         .position(|t| t.id == task_id)
         .expect("task found above");
-    let task = data.tasks.remove(idx);
+    let mut task = data.tasks.remove(idx);
+    task.stop_timer(chrono::Utc::now());
     data.trash.push(TrashEntry {
         task,
         deleted_at: chrono::Utc::now(),

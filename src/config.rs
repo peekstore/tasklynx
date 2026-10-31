@@ -49,6 +49,11 @@ pub fn validate(c: &AppConfig) -> Result<()> {
     if c.ai.max_context_tasks == 0 {
         anyhow::bail!("config: ai.max_context_tasks must be at least 1");
     }
+    for name in c.views.keys() {
+        if name.trim().is_empty() {
+            anyhow::bail!("config: view names must not be empty");
+        }
+    }
     Ok(())
 }
 
@@ -84,6 +89,7 @@ mod tests {
         let c: AppConfig = toml::from_str("port = 9999").unwrap();
         assert_eq!(c.port, 9999);
         assert_eq!(c.host, AppConfig::default().host);
+        assert!(c.views.is_empty());
         assert_eq!(c.ai.provider, "none");
     }
 
@@ -93,6 +99,29 @@ mod tests {
         assert_eq!(c.ai.provider, "ollama");
         assert_eq!(c.ai.model, AppConfig::default().ai.model);
         assert!(c.ai.redact);
+    }
+
+    #[test]
+    fn parses_saved_views() {
+        let c: AppConfig =
+            toml::from_str("[views.api]\nproject = \"api\"\ntag = \"backend\"\nall = true\n")
+                .unwrap();
+        let view = &c.views["api"];
+        assert_eq!(view.project.as_deref(), Some("api"));
+        assert_eq!(view.tag.as_deref(), Some("backend"));
+        assert!(view.all);
+    }
+
+    #[test]
+    fn rejects_empty_view_names() {
+        let mut c = AppConfig::default();
+        c.views.insert(
+            "  ".into(),
+            crate::model::SavedView {
+                ..crate::model::SavedView::default()
+            },
+        );
+        assert!(validate(&c).is_err());
     }
 
     #[test]

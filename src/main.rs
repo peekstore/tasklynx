@@ -1,12 +1,15 @@
 mod ai;
 mod config;
+mod duplicates;
 mod git;
 mod model;
+mod reminders;
 mod store;
+mod templates;
 mod tui;
 mod web;
 
-use anyhow::Result;
+use anyhow::{bail, Result};
 use clap::{CommandFactory, Parser, Subcommand};
 use model::{local_due_date, Priority, Repeat, Status, Task};
 use std::path::PathBuf;
@@ -28,13 +31,13 @@ struct Cli {
 enum Cmd {
     Init,
     Add {
-        title: String,
+        title: Option<String>,
         #[arg(short, long, default_value = "default")]
         project: String,
         #[arg(short, long, value_delimiter = ',')]
         tag: Vec<String>,
-        #[arg(short = 'P', long, default_value = "normal")]
-        priority: String,
+        #[arg(short = 'P', long)]
+        priority: Option<String>,
         #[arg(long)]
         due: Option<String>,
         #[arg(short, long)]
@@ -47,6 +50,8 @@ enum Cmd {
         repeat: Option<String>,
         #[arg(long)]
         repeat_until: Option<String>,
+        #[arg(long)]
+        template: Option<String>,
     },
     List {
         #[arg(long)]
@@ -59,17 +64,44 @@ enum Cmd {
         search: Option<String>,
         #[arg(long)]
         all: bool,
+        #[arg(long)]
+        view: Option<String>,
+        #[arg(long)]
+        save: Option<String>,
     },
     Complete {
-        id: String,
+        id: Option<String>,
         #[arg(long)]
         force: bool,
+        #[arg(long)]
+        done_before: Option<String>,
+        #[arg(long)]
+        all: bool,
     },
     Reopen {
         id: String,
     },
     Doing {
         id: String,
+    },
+    Start {
+        id: String,
+    },
+    Stop,
+    Time {
+        id: Option<String>,
+    },
+    #[command(aliases = ["views", "filter", "filters"])]
+    View {
+        #[command(subcommand)]
+        action: ViewCmd,
+    },
+    #[command(alias = "dups")]
+    Duplicates {
+        #[arg(long, default_value_t = 0.72)]
+        threshold: f64,
+        #[arg(long)]
+        all: bool,
     },
     Delete {
         id: String,
@@ -155,6 +187,12 @@ enum Cmd {
     Agenda {
         #[arg(long, default_value_t = 7)]
         days: u32,
+    },
+    Remind {
+        #[arg(long, default_value_t = 3)]
+        days: u32,
+        #[arg(long)]
+        notify: bool,
     },
     Stats,
     Branch {
@@ -268,6 +306,50 @@ enum AiCmd {
         #[arg(long)]
         no_description: bool,
     },
+    Triage {
+        #[arg(long, default_value_t = 5)]
+        limit: usize,
+        #[arg(long)]
+        project: Option<String>,
+        #[arg(long)]
+        include_blocked: bool,
+        #[arg(long)]
+        no_description: bool,
+        #[arg(long)]
+        offline: bool,
+    },
+    Standup {
+        #[arg(long, default_value_t = 1)]
+        days: u32,
+        #[arg(long)]
+        project: Option<String>,
+        #[arg(long, default_value_t = 10)]
+        limit: usize,
+        #[arg(long)]
+        no_description: bool,
+    },
+    Review {
+        branch: Option<String>,
+        #[arg(long, default_value_t = 30)]
+        days: u32,
+        #[arg(long)]
+        project: Option<String>,
+        #[arg(long, default_value_t = 10)]
+        limit: usize,
+        #[arg(long)]
+        no_description: bool,
+    },
+    Ask {
+        question: String,
+        #[arg(long)]
+        project: Option<String>,
+        #[arg(long)]
+        branch: Option<String>,
+        #[arg(long, default_value_t = 50)]
+        limit: usize,
+        #[arg(long)]
+        no_description: bool,
+    },
     Doctor,
 }
 
@@ -277,6 +359,33 @@ enum BranchCmd {
     Create { name: String },
     Switch { name: String },
     Delete { name: String },
+}
+
+#[derive(Subcommand)]
+enum ViewCmd {
+    Save {
+        name: String,
+        #[arg(long)]
+        project: Option<String>,
+        #[arg(long)]
+        tag: Option<String>,
+        #[arg(long)]
+        status: Option<String>,
+        #[arg(long)]
+        search: Option<String>,
+        #[arg(long)]
+        all: bool,
+    },
+    List,
+    Show {
+        name: String,
+    },
+    Run {
+        name: String,
+    },
+    Delete {
+        name: String,
+    },
 }
 
 #[derive(Subcommand)]
@@ -316,35 +425,139 @@ fn parse_repeat(s: &str) -> Result<Repeat> {
     }
 }
 
-fn priority_rank(p: &Priority) -> u8 {
-    match p {
-        Priority::Urgent => 0,
-        Priority::High => 1,
-        Priority::Normal => 2,
-        Priority::Low => 3,
+fn format_duration(seconds: u64) -> String {
+    let hours = seconds / 3600;
+    let minutes = (seconds % 3600) / 60;
+    let secs = seconds % 60;
+    if hours > 0 {
+        if secs > 0 {
+            format!("{hours}h {minutes:02}m {secs:02}s")
+        } else if minutes > 0 {
+            format!("{hours}h {minutes:02}m")
+        } else {
+            format!("{hours}h")
+        }
+    } else if minutes > 0 {
+        if secs > 0 {
+            format!("{minutes}m {secs:02}s")
+        } else {
+            format!("{minutes}m")
+        }
+    } else {
+        format!("{secs}s")
     }
 }
 
-fn next_key(t: &Task, now: chrono::DateTime<chrono::Utc>) -> (u8, u8, u8, i64, i64) {
-    let today = now.with_timezone(&chrono::Local).date_naive();
-    let (due_bucket, due_ts) = match t.due {
-        Some(d) if d < now => (0, d.timestamp()),
-        Some(d) if d.with_timezone(&chrono::Local).date_naive() == today => (1, d.timestamp()),
-        Some(d) => (2, d.timestamp()),
-        None => (3, i64::MAX),
-    };
-    let status = match t.status {
-        Status::Doing => 0,
-        Status::Todo => 1,
-        Status::Done => 2,
-    };
-    (
-        priority_rank(&t.priority),
-        due_bucket,
+fn validate_view_name(name: &str) -> Result<()> {
+    if name.trim().is_empty() {
+        bail!("view name must not be empty");
+    }
+    Ok(())
+}
+
+fn saved_view(
+    project: Option<String>,
+    tag: Option<String>,
+    status: Option<String>,
+    search: Option<String>,
+    all: bool,
+) -> model::SavedView {
+    model::SavedView {
+        project,
+        tag,
         status,
-        due_ts,
-        t.created_at.timestamp(),
+        search,
+        all,
+    }
+}
+
+fn load_saved_view(name: &str) -> Result<model::SavedView> {
+    let config = config::load()?;
+    config.views.get(name).cloned().ok_or_else(|| {
+        let names = if config.views.is_empty() {
+            "none".to_string()
+        } else {
+            config.views.keys().cloned().collect::<Vec<_>>().join(", ")
+        };
+        anyhow::anyhow!("view not found: {name}; saved views: {names}")
+    })
+}
+
+fn save_view(name: &str, view: &model::SavedView) -> Result<()> {
+    validate_view_name(name)?;
+    let mut config = config::load()?;
+    config.views.insert(name.to_string(), view.clone());
+    config::save(&config)
+}
+
+fn view_line(name: &str, view: &model::SavedView) -> String {
+    format!(
+        "{name}  project={} tag={} status={} search={} all={}",
+        view.project.as_deref().unwrap_or("-"),
+        view.tag.as_deref().unwrap_or("-"),
+        view.status.as_deref().unwrap_or("-"),
+        view.search.as_deref().unwrap_or("-"),
+        view.all
     )
+}
+
+fn task_matches_view(task: &Task, view: &model::SavedView, current_branch: &str) -> bool {
+    if !view.all && task.branch != current_branch {
+        return false;
+    }
+    if view
+        .project
+        .as_ref()
+        .is_some_and(|project| &task.project != project)
+    {
+        return false;
+    }
+    if view
+        .tag
+        .as_ref()
+        .is_some_and(|tag| !task.tags.iter().any(|item| item == tag))
+    {
+        return false;
+    }
+    if view
+        .status
+        .as_ref()
+        .is_some_and(|status| task.status.to_string() != *status)
+    {
+        return false;
+    }
+    if view.search.as_ref().is_some_and(|search| {
+        !task.title.to_lowercase().contains(&search.to_lowercase())
+            && !task
+                .description
+                .to_lowercase()
+                .contains(&search.to_lowercase())
+    }) {
+        return false;
+    }
+    true
+}
+
+fn print_task_list(data: &model::ProjectData, view: &model::SavedView) {
+    for task in &data.tasks {
+        if !task_matches_view(task, view, &data.current_branch) {
+            continue;
+        }
+        let recur = if task.repeat == Repeat::None {
+            String::new()
+        } else {
+            format!(" ↻ {}", task.repeat)
+        };
+        println!(
+            "{}  {:7} {:7} {:12} {}{}",
+            &task.id.to_string()[..8],
+            task.status,
+            task.priority,
+            task.project,
+            task.title,
+            recur
+        );
+    }
 }
 
 fn due_display(t: &Task) -> String {
@@ -389,6 +602,36 @@ fn print_tree(
     for child in children {
         print_tree(data, child, depth + 1, seen);
     }
+}
+
+fn print_triage_picks(data: &model::ProjectData, picks: &[ai::TriagePick]) {
+    for (index, pick) in picks.iter().enumerate() {
+        if let Ok(task) = store::find(data, &pick.task_id.to_string()) {
+            println!(
+                "  {}. {}  [{}] {}  {}",
+                index + 1,
+                &task.id.to_string()[..8],
+                task.priority,
+                task.project,
+                task.title
+            );
+            println!("     {}", pick.reason);
+        }
+    }
+}
+
+fn print_report(report: &ai::Report) {
+    println!("{}", report.summary);
+    for section in &report.sections {
+        println!("\n{}", section.title);
+        for item in &section.items {
+            println!("- {item}");
+        }
+    }
+}
+
+fn announce_ai(provider: &dyn ai::Provider, config: &model::AppConfig) {
+    eprintln!("ai: provider={} model={}", provider.name(), config.ai.model);
 }
 
 fn print_ai_tasks(label: &str, tasks: &[Task]) {
@@ -637,8 +880,23 @@ async fn main() -> Result<()> {
             commit,
             repeat,
             repeat_until,
+            template,
         } => {
             let _lock = store::StoreLock::acquire()?;
+            let template = match template {
+                Some(name) => Some(templates::find(&name).ok_or_else(|| {
+                    anyhow::anyhow!(
+                        "unknown template '{name}'; available templates: {}",
+                        templates::names()
+                    )
+                })?),
+                None => None,
+            };
+            let title = title
+                .or_else(|| template.map(|template| template.title.to_string()))
+                .ok_or_else(|| {
+                    anyhow::anyhow!("a task title is required unless --template is used")
+                })?;
             let due = due.map(|d| local_due_date(&d)).transpose()?;
             let repeat = match repeat {
                 Some(v) => parse_repeat(&v)?,
@@ -648,12 +906,35 @@ async fn main() -> Result<()> {
             if repeat == Repeat::None && repeat_until.is_some() {
                 anyhow::bail!("--repeat-until requires --repeat");
             }
+
+            let mut tags = tag;
+            let mut description = description;
+            let mut estimate = estimate;
+            if let Some(template) = template {
+                for tag in template.tags {
+                    if !tags.iter().any(|existing| existing == tag) {
+                        tags.push((*tag).to_string());
+                    }
+                }
+                if description.is_none() {
+                    description = Some(template.description.to_string());
+                }
+                if estimate.is_none() {
+                    estimate = template.estimate_minutes;
+                }
+            }
+            let priority = pri
+                .as_deref()
+                .map(priority)
+                .or_else(|| template.map(|template| template.priority.clone()))
+                .unwrap_or_default();
+
             let mut t = Task::new(
                 title,
                 project,
                 data.current_branch.clone(),
-                priority(&pri),
-                tag,
+                priority,
+                tags,
                 due,
             );
             if let Some(desc) = description {
@@ -664,9 +945,27 @@ async fn main() -> Result<()> {
             t.repeat = repeat;
             t.repeat_until = repeat_until;
 
+            let warnings: Vec<(String, String, f64)> =
+                duplicates::similar_to(&t, &data.tasks, &data.current_branch, false, 0.72)
+                    .into_iter()
+                    .take(3)
+                    .map(|(other, score)| {
+                        (
+                            other.id.to_string()[..8].to_string(),
+                            other.title.clone(),
+                            score,
+                        )
+                    })
+                    .collect();
             let id = t.id.to_string();
             store::add(&mut data, t)?;
             println!("{}", id);
+            for (other_id, title, score) in warnings {
+                eprintln!(
+                    "warning: possible duplicate: similar task {other_id} {title} ({:.0}% match)",
+                    score * 100.0
+                );
+            }
         }
         Cmd::List {
             project,
@@ -674,66 +973,142 @@ async fn main() -> Result<()> {
             status,
             search,
             all,
+            view,
+            save,
         } => {
-            for t in &data.tasks {
-                if !all && t.branch != data.current_branch {
-                    continue;
-                }
-                if project.as_ref().is_some_and(|x| &t.project != x) {
-                    continue;
-                }
-                if tag.as_ref().is_some_and(|x| !t.tags.iter().any(|z| z == x)) {
-                    continue;
-                }
-                if status.as_ref().is_some_and(|x| t.status.to_string() != *x) {
-                    continue;
-                }
-                if search.as_ref().is_some_and(|x| {
-                    !t.title.to_lowercase().contains(&x.to_lowercase())
-                        && !t.description.to_lowercase().contains(&x.to_lowercase())
-                }) {
-                    continue;
-                }
-                let recur = if t.repeat == Repeat::None {
-                    String::new()
+            if view.is_some() && save.is_some() {
+                anyhow::bail!("use either --view or --save, not both");
+            }
+            if let Some(name) = save {
+                validate_view_name(&name)?;
+                let filter = saved_view(project, tag, status, search, all);
+                save_view(&name, &filter)?;
+                println!("saved view {name}");
+            } else {
+                let filter = if let Some(name) = view {
+                    let mut filter = load_saved_view(&name)?;
+                    if let Some(project) = project {
+                        filter.project = Some(project);
+                    }
+                    if let Some(tag) = tag {
+                        filter.tag = Some(tag);
+                    }
+                    if let Some(status) = status {
+                        filter.status = Some(status);
+                    }
+                    if let Some(search) = search {
+                        filter.search = Some(search);
+                    }
+                    if all {
+                        filter.all = true;
+                    }
+                    filter
                 } else {
-                    format!(" ↻ {}", t.repeat)
+                    saved_view(project, tag, status, search, all)
                 };
-                println!(
-                    "{}  {:7} {:7} {:12} {}{}",
-                    &t.id.to_string()[..8],
-                    t.status,
-                    t.priority,
-                    t.project,
-                    t.title,
-                    recur
-                );
+                print_task_list(&data, &filter);
             }
         }
-        Cmd::Complete { id, force } => {
+        Cmd::Complete {
+            id,
+            force,
+            done_before,
+            all,
+        } => {
             let _lock = store::StoreLock::acquire()?;
-            let (tid, open_children) = {
-                let t = store::find(&data, &id)?;
-                (t.id.to_string(), t.open_child_count(&data.tasks))
-            };
-            if !force && open_children > 0 {
-                anyhow::bail!(
-                    "task has {open_children} open subtask(s); pass --force to complete it anyway"
-                );
-            }
-            let previous = data.clone();
-            let next = {
-                let t = store::find_mut(&mut data, &id)?;
-                t.set_status(Status::Done)
-            };
-            if let Some(next) = next {
-                let nid = next.id.to_string();
-                data.tasks.push(next);
-                store::save_with_undo(&data, &previous)?;
-                println!("done {}; next {}", &tid[..8], &nid[..8]);
-            } else {
-                store::save_with_undo(&data, &previous)?;
-                println!("done {}", &tid[..8]);
+            match (id, done_before) {
+                (Some(_), Some(_)) => {
+                    anyhow::bail!("use either a task id or --done-before, not both")
+                }
+                (Some(id), None) => {
+                    let (tid, open_children) = {
+                        let t = store::find(&data, &id)?;
+                        (t.id.to_string(), t.open_child_count(&data.tasks))
+                    };
+                    if !force && open_children > 0 {
+                        anyhow::bail!(
+                            "task has {open_children} open subtask(s); pass --force to complete it anyway"
+                        );
+                    }
+                    let previous = data.clone();
+                    let next = {
+                        let t = store::find_mut(&mut data, &id)?;
+                        t.set_status(Status::Done)
+                    };
+                    if let Some(next) = next {
+                        let nid = next.id.to_string();
+                        data.tasks.push(next);
+                        store::save_with_undo(&data, &previous)?;
+                        println!("done {}; next {}", &tid[..8], &nid[..8]);
+                    } else {
+                        store::save_with_undo(&data, &previous)?;
+                        println!("done {}", &tid[..8]);
+                    }
+                }
+                (None, Some(date)) => {
+                    let cutoff = local_due_date(&date)?;
+                    let candidates: Vec<uuid::Uuid> = data
+                        .tasks
+                        .iter()
+                        .filter(|task| task.status != Status::Done)
+                        .filter(|task| task.due.is_some_and(|due| due <= cutoff))
+                        .filter(|task| all || task.branch == data.current_branch)
+                        .map(|task| task.id)
+                        .collect();
+                    if candidates.is_empty() {
+                        println!("no open tasks due on or before {date}");
+                    } else {
+                        let previous = data.clone();
+                        let mut completed = 0;
+                        let mut skipped = 0;
+                        for task_id in candidates {
+                            let open_children = data
+                                .tasks
+                                .iter()
+                                .find(|task| task.id == task_id)
+                                .map(|task| task.open_child_count(&data.tasks))
+                                .unwrap_or(0);
+                            if !force && open_children > 0 {
+                                skipped += 1;
+                                println!(
+                                    "skipped {} ({} open subtask(s))",
+                                    &task_id.to_string()[..8],
+                                    open_children
+                                );
+                                continue;
+                            }
+                            let (tid, next) = {
+                                let task = data
+                                    .tasks
+                                    .iter_mut()
+                                    .find(|task| task.id == task_id)
+                                    .expect("candidate task exists");
+                                let next = task.set_status(Status::Done);
+                                (task.id.to_string(), next)
+                            };
+                            if let Some(next) = next {
+                                let nid = next.id.to_string();
+                                data.tasks.push(next);
+                                println!("done {}; next {}", &tid[..8], &nid[..8]);
+                            } else {
+                                println!("done {}", &tid[..8]);
+                            }
+                            completed += 1;
+                        }
+                        if completed > 0 {
+                            store::save_with_undo(&data, &previous)?;
+                        }
+                        println!("completed {completed} task(s) due on or before {date}");
+                        if skipped > 0 {
+                            println!(
+                                "skipped {skipped} task(s) with open subtasks; pass --force to complete them"
+                            );
+                        }
+                    }
+                }
+                (None, None) => {
+                    anyhow::bail!("provide a task id or --done-before <date>")
+                }
             }
         }
         Cmd::Reopen { id } => {
@@ -757,6 +1132,195 @@ async fn main() -> Result<()> {
             };
             store::save_with_undo(&data, &previous)?;
             println!("doing {}", &tid[..8]);
+        }
+        Cmd::Start { id } => {
+            let _lock = store::StoreLock::acquire()?;
+            let now = chrono::Utc::now();
+            let target = store::find(&data, &id)?;
+            if target.status == Status::Done {
+                bail!("cannot start a completed task; run `tx reopen` first");
+            }
+            if let Some(active) = data
+                .tasks
+                .iter()
+                .find(|task| task.active_time_entry().is_some())
+            {
+                let active_id = active.id.to_string();
+                bail!(
+                    "timer already running for {} {}; run `tx stop` first",
+                    &active_id[..8],
+                    active.title
+                );
+            }
+            let tid = target.id.to_string();
+            let title = target.title.clone();
+            let previous = data.clone();
+            {
+                let task = store::find_mut(&mut data, &id)?;
+                task.set_status(Status::Doing);
+                task.start_timer(now);
+            }
+            store::save_with_undo(&data, &previous)?;
+            println!("started {} {}", &tid[..8], title);
+        }
+        Cmd::Stop => {
+            let _lock = store::StoreLock::acquire()?;
+            let now = chrono::Utc::now();
+            if !data
+                .tasks
+                .iter()
+                .any(|task| task.active_time_entry().is_some())
+            {
+                bail!("no running timer");
+            }
+            let previous = data.clone();
+            let mut stopped = Vec::new();
+            for task in &mut data.tasks {
+                let mut elapsed = 0;
+                let mut sessions = 0;
+                while task.active_time_entry().is_some() {
+                    let Some(seconds) = task.stop_timer(now) else {
+                        break;
+                    };
+                    elapsed += seconds;
+                    sessions += 1;
+                }
+                if sessions > 0 {
+                    stopped.push((task.id.to_string(), task.title.clone(), elapsed));
+                }
+            }
+            store::save_with_undo(&data, &previous)?;
+            for (id, title, elapsed) in stopped {
+                println!(
+                    "stopped {}  {}  {}",
+                    &id[..8],
+                    format_duration(elapsed),
+                    title
+                );
+            }
+        }
+        Cmd::Time { id } => {
+            let now = chrono::Utc::now();
+            if let Some(id) = id {
+                let task = store::find(&data, &id)?;
+                let total = task.tracked_seconds(now);
+                println!("{}", task.title);
+                if let Some(estimate) = task.estimate_minutes {
+                    println!("  estimate  {}", format_duration(u64::from(estimate) * 60));
+                }
+                println!("  actual    {}", format_duration(total));
+                if task.time_entries.is_empty() {
+                    println!("  no time entries");
+                }
+                for entry in &task.time_entries {
+                    let start = entry
+                        .started_at
+                        .with_timezone(&chrono::Local)
+                        .format("%Y-%m-%d %H:%M");
+                    let elapsed = format_duration(entry.duration_seconds(now));
+                    if let Some(end) = entry.ended_at {
+                        let end = end.with_timezone(&chrono::Local).format("%Y-%m-%d %H:%M");
+                        println!("  {start} -> {end}  {elapsed}");
+                    } else {
+                        println!("  {start} -> active  {elapsed}");
+                    }
+                }
+            } else {
+                let mut total = 0;
+                let mut rows = 0;
+                for task in &data.tasks {
+                    if task.time_entries.is_empty() {
+                        continue;
+                    }
+                    let seconds = task.tracked_seconds(now);
+                    total += seconds;
+                    rows += 1;
+                    let active = if task.active_time_entry().is_some() {
+                        "ACTIVE"
+                    } else {
+                        "      "
+                    };
+                    let estimate = task
+                        .estimate_minutes
+                        .map(|minutes| format!("est {}", format_duration(u64::from(minutes) * 60)))
+                        .unwrap_or_else(|| "est -".to_string());
+                    let id = task.id.to_string();
+                    println!(
+                        "{active}  {}  {:>8}  {:>10}  {}",
+                        &id[..8],
+                        format_duration(seconds),
+                        estimate,
+                        task.title
+                    );
+                }
+                if rows == 0 {
+                    println!("no time tracked");
+                } else {
+                    println!("total {}", format_duration(total));
+                }
+            }
+        }
+        Cmd::View { action } => match action {
+            ViewCmd::Save {
+                name,
+                project,
+                tag,
+                status,
+                search,
+                all,
+            } => {
+                let filter = saved_view(project, tag, status, search, all);
+                save_view(&name, &filter)?;
+                println!("saved view {name}");
+            }
+            ViewCmd::List => {
+                let config = config::load()?;
+                if config.views.is_empty() {
+                    println!("no saved views");
+                } else {
+                    for (name, view) in &config.views {
+                        println!("{}", view_line(name, view));
+                    }
+                }
+            }
+            ViewCmd::Show { name } => {
+                let view = load_saved_view(&name)?;
+                println!("{}", view_line(&name, &view));
+            }
+            ViewCmd::Run { name } => {
+                let view = load_saved_view(&name)?;
+                print_task_list(&data, &view);
+            }
+            ViewCmd::Delete { name } => {
+                validate_view_name(&name)?;
+                let mut config = config::load()?;
+                if config.views.remove(&name).is_none() {
+                    bail!("view not found: {name}");
+                }
+                config::save(&config)?;
+                println!("deleted view {name}");
+            }
+        },
+        Cmd::Duplicates { threshold, all } => {
+            if !(0.0..=1.0).contains(&threshold) {
+                bail!("--threshold must be between 0.0 and 1.0");
+            }
+            let pairs =
+                duplicates::similar_pairs(&data.tasks, &data.current_branch, all, threshold);
+            if pairs.is_empty() {
+                println!("no similar open tasks found");
+            } else {
+                for (left, right, score) in pairs {
+                    println!(
+                        "{:.2}  {}  {}  ~  {}  {}",
+                        score,
+                        &left.id.to_string()[..8],
+                        left.title,
+                        &right.id.to_string()[..8],
+                        right.title
+                    );
+                }
+            }
         }
         Cmd::Delete { id } => {
             let _lock = store::StoreLock::acquire()?;
@@ -790,7 +1354,7 @@ async fn main() -> Result<()> {
                 .filter(|t| project.as_ref().map_or(true, |p| &t.project == p))
                 .filter(|t| include_blocked || !t.is_blocked(&data.tasks))
                 .collect();
-            candidates.sort_by_key(|t| next_key(t, now));
+            candidates.sort_by_key(|t| model::next_key(t, now));
             if let Some(t) = candidates.first() {
                 println!(
                     "{}  {:7} {:10} {:12} {}",
@@ -1148,6 +1712,7 @@ async fn main() -> Result<()> {
                 }
                 let config = config::load()?;
                 let provider = ai::provider(&config.ai)?;
+                announce_ai(provider.as_ref(), &config);
                 let include_descriptions = config.ai.include_descriptions && !no_description;
                 let plan = ai::request_plan(
                     provider.as_ref(),
@@ -1196,6 +1761,7 @@ async fn main() -> Result<()> {
                     .collect();
                 let config = config::load()?;
                 let provider = ai::provider(&config.ai)?;
+                announce_ai(provider.as_ref(), &config);
                 let include_descriptions = config.ai.include_descriptions && !no_description;
                 let plan = ai::request_breakdown(
                     provider.as_ref(),
@@ -1218,6 +1784,160 @@ async fn main() -> Result<()> {
                 } else {
                     println!("preview only; pass --apply to create these subtasks");
                 }
+            }
+            AiCmd::Triage {
+                limit,
+                project,
+                include_blocked,
+                no_description,
+                offline,
+            } => {
+                if limit == 0 || limit > 50 {
+                    anyhow::bail!("--limit must be between 1 and 50");
+                }
+                let config = config::load()?;
+                let include_descriptions = config.ai.include_descriptions && !no_description;
+                let deterministic =
+                    offline || matches!(config.ai.provider_kind()?, ai::ProviderKind::None);
+                let picks = if ai::triage_candidate_count(
+                    &data.tasks,
+                    &data.current_branch,
+                    project.as_deref(),
+                    include_blocked,
+                ) == 0
+                {
+                    println!("no eligible tasks to triage");
+                    Vec::new()
+                } else if deterministic {
+                    let request = ai::TriageRequest {
+                        tasks: &data.tasks,
+                        branch: &data.current_branch,
+                        project: project.as_deref(),
+                        limit,
+                        include_blocked,
+                        include_descriptions,
+                    };
+                    let picks = ai::deterministic_triage(request);
+                    println!("offline triage: {} task(s)", picks.len());
+                    picks
+                } else {
+                    let provider = ai::provider(&config.ai)?;
+                    announce_ai(provider.as_ref(), &config);
+                    let response = ai::request_triage(
+                        provider.as_ref(),
+                        &config.ai,
+                        ai::TriageRequest {
+                            tasks: &data.tasks,
+                            branch: &data.current_branch,
+                            project: project.as_deref(),
+                            limit,
+                            include_blocked,
+                            include_descriptions,
+                        },
+                    )?;
+                    println!("{}", response.summary);
+                    ai::resolve_triage(
+                        &response,
+                        &data.tasks,
+                        &data.current_branch,
+                        project.as_deref(),
+                        include_blocked,
+                    )?
+                };
+                print_triage_picks(&data, &picks);
+            }
+            AiCmd::Standup {
+                days,
+                project,
+                limit,
+                no_description,
+            } => {
+                if !(1..=365).contains(&days) {
+                    anyhow::bail!("--days must be between 1 and 365");
+                }
+                if limit == 0 || limit > 50 {
+                    anyhow::bail!("--limit must be between 1 and 50");
+                }
+                let config = config::load()?;
+                let provider = ai::provider(&config.ai)?;
+                announce_ai(provider.as_ref(), &config);
+                let include_descriptions = config.ai.include_descriptions && !no_description;
+                let report = ai::request_report(
+                    provider.as_ref(),
+                    &config.ai,
+                    ai::ReportRequest {
+                        kind: ai::ReportKind::Standup,
+                        tasks: &data.tasks,
+                        branch: &data.current_branch,
+                        project: project.as_deref(),
+                        days,
+                        limit,
+                        include_descriptions,
+                    },
+                )?;
+                print_report(&report);
+            }
+            AiCmd::Review {
+                branch,
+                days,
+                project,
+                limit,
+                no_description,
+            } => {
+                if !(1..=3650).contains(&days) {
+                    anyhow::bail!("--days must be between 1 and 3650");
+                }
+                if limit == 0 || limit > 50 {
+                    anyhow::bail!("--limit must be between 1 and 50");
+                }
+                let config = config::load()?;
+                let provider = ai::provider(&config.ai)?;
+                announce_ai(provider.as_ref(), &config);
+                let include_descriptions = config.ai.include_descriptions && !no_description;
+                let branch = branch.unwrap_or_else(|| data.current_branch.clone());
+                let report = ai::request_report(
+                    provider.as_ref(),
+                    &config.ai,
+                    ai::ReportRequest {
+                        kind: ai::ReportKind::Review,
+                        tasks: &data.tasks,
+                        branch: &branch,
+                        project: project.as_deref(),
+                        days,
+                        limit,
+                        include_descriptions,
+                    },
+                )?;
+                print_report(&report);
+            }
+            AiCmd::Ask {
+                question,
+                project,
+                branch,
+                limit,
+                no_description,
+            } => {
+                if limit == 0 || limit > 100 {
+                    anyhow::bail!("--limit must be between 1 and 100");
+                }
+                let config = config::load()?;
+                let provider = ai::provider(&config.ai)?;
+                announce_ai(provider.as_ref(), &config);
+                let include_descriptions = config.ai.include_descriptions && !no_description;
+                let branch = branch.unwrap_or_else(|| data.current_branch.clone());
+                let answer = ai::request_answer(
+                    provider.as_ref(),
+                    &config.ai,
+                    ai::AskRequest {
+                        question: &question,
+                        tasks: &data.tasks,
+                        branch: &branch,
+                        project: project.as_deref(),
+                        limit,
+                        include_descriptions,
+                    },
+                )?;
+                println!("{}", answer.answer);
             }
             AiCmd::Doctor => {
                 let config = config::load()?;
@@ -1304,6 +2024,7 @@ async fn main() -> Result<()> {
             n.title = format!("Copy: {}", n.title);
             n.status = Status::Todo;
             n.completed_at = None;
+            n.time_entries.clear();
             n.created_at = chrono::Utc::now();
             n.updated_at = n.created_at;
             data.tasks.push(n.clone());
@@ -1370,6 +2091,34 @@ async fn main() -> Result<()> {
                 );
             }
         }
+        Cmd::Remind { days, notify } => {
+            if days > 3650 {
+                bail!("--days must be between 0 and 3650");
+            }
+            let now = chrono::Utc::now();
+            let due = reminders::upcoming(&data.tasks, days, now);
+            if due.is_empty() {
+                println!("nothing due in the next {days} day(s)");
+            } else {
+                for task in &due {
+                    let due_at = task.due.expect("reminder tasks always have a due date");
+                    let date = due_at.with_timezone(&chrono::Local).format("%Y-%m-%d");
+                    println!(
+                        "{:8} {}  {}  {:7}  {}",
+                        reminders::reminder_label(due_at, now),
+                        &task.id.to_string()[..8],
+                        date,
+                        task.priority,
+                        task.title
+                    );
+                }
+                if notify {
+                    let (title, body) = reminders::notification_text(&due);
+                    reminders::notify(&title, &body)?;
+                    eprintln!("notification sent");
+                }
+            }
+        }
         Cmd::Stats => {
             let done = data
                 .tasks
@@ -1432,13 +2181,12 @@ async fn main() -> Result<()> {
                 store::save_with_undo(&data, &previous)?
             }
         },
-        Cmd::Export { format } => {
-            if format == "md" {
-                print!("{}", store::export_md(&data))
-            } else {
-                println!("{}", store::export_json(&data)?)
-            }
-        }
+        Cmd::Export { format } => match format.as_str() {
+            "md" => print!("{}", store::export_md(&data)),
+            "json" => println!("{}", store::export_json(&data)?),
+            "ics" => print!("{}", reminders::export_ics(&data.tasks, chrono::Utc::now())),
+            other => bail!("unsupported export format '{other}'; expected json, md, or ics"),
+        },
         Cmd::Import {
             path,
             format,

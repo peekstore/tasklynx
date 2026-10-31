@@ -1,5 +1,6 @@
-use crate::model::{local_due_date, AiConfig, Priority, ProjectData, Status, Task};
+use crate::model::{local_due_date, next_key, AiConfig, Priority, ProjectData, Status, Task};
 use anyhow::{anyhow, bail, Context, Result};
+use chrono::{Duration, Utc};
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 
@@ -29,7 +30,7 @@ impl AiConfig {
     }
 }
 
-pub trait Provider {
+pub trait Provider: Send + Sync {
     fn name(&self) -> &'static str;
     fn generate(&self, prompt: &str) -> Result<String>;
     fn doctor(&self) -> Result<Vec<String>>;
@@ -326,6 +327,91 @@ pub struct DraftPlan {
     pub tasks: Vec<DraftTask>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct DraftTriagePick {
+    pub id: String,
+    #[serde(default)]
+    pub reason: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct TriageResponse {
+    #[serde(default)]
+    pub summary: String,
+    #[serde(default)]
+    pub picks: Vec<DraftTriagePick>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct TriagePick {
+    pub task_id: uuid::Uuid,
+    pub reason: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct ReportSection {
+    pub title: String,
+    #[serde(default)]
+    pub items: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct Report {
+    #[serde(default)]
+    pub summary: String,
+    #[serde(default)]
+    pub sections: Vec<ReportSection>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct AiAnswer {
+    #[serde(default)]
+    pub answer: String,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ReportKind {
+    Standup,
+    Review,
+}
+
+impl ReportKind {
+    fn label(self) -> &'static str {
+        match self {
+            Self::Standup => "standup",
+            Self::Review => "review",
+        }
+    }
+}
+
+pub struct TriageRequest<'a> {
+    pub tasks: &'a [Task],
+    pub branch: &'a str,
+    pub project: Option<&'a str>,
+    pub limit: usize,
+    pub include_blocked: bool,
+    pub include_descriptions: bool,
+}
+
+pub struct ReportRequest<'a> {
+    pub kind: ReportKind,
+    pub tasks: &'a [Task],
+    pub branch: &'a str,
+    pub project: Option<&'a str>,
+    pub days: u32,
+    pub limit: usize,
+    pub include_descriptions: bool,
+}
+
+pub struct AskRequest<'a> {
+    pub question: &'a str,
+    pub tasks: &'a [Task],
+    pub branch: &'a str,
+    pub project: Option<&'a str>,
+    pub limit: usize,
+    pub include_descriptions: bool,
+}
+
 pub struct PlanRequest<'a> {
     pub goal: &'a str,
     pub tasks: &'a [Task],
@@ -349,7 +435,7 @@ pub fn request_plan(
         request.limit,
         request.include_descriptions,
     );
-    let raw = provider.generate(&prompt)?;
+    let raw = generate(provider, &prompt)?;
     parse_response(&raw, request.limit)
 }
 
@@ -362,8 +448,542 @@ pub fn request_breakdown(
     include_descriptions: bool,
 ) -> Result<DraftPlan> {
     let prompt = breakdown_prompt(config, parent, children, limit, include_descriptions);
-    let raw = provider.generate(&prompt)?;
+    let raw = generate(provider, &prompt)?;
     parse_response(&raw, limit)
+}
+
+fn generate(provider: &dyn Provider, prompt: &str) -> Result<String> {
+    let started = std::time::Instant::now();
+    let result = provider.generate(prompt);
+    if std::env::var_os("TASKLYNX_AI_LOG").is_some() {
+        match &result {
+            Ok(raw) => eprintln!(
+                "ai: provider={} prompt={}B response={}B latency={}ms",
+                provider.name(),
+                prompt.len(),
+                raw.len(),
+                started.elapsed().as_millis()
+            ),
+            Err(_) => eprintln!(
+                "ai: provider={} prompt={}B error latency={}ms",
+                provider.name(),
+                prompt.len(),
+                started.elapsed().as_millis()
+            ),
+        }
+    }
+    result
+}
+
+pub fn deterministic_triage(request: TriageRequest<'_>) -> Vec<TriagePick> {
+    let now = Utc::now();
+    let mut candidates = triage_candidates(
+        request.tasks,
+        request.branch,
+        request.project,
+        request.include_blocked,
+    );
+    candidates.truncate(request.limit);
+    candidates
+        .into_iter()
+        .map(|task| TriagePick {
+            task_id: task.id,
+            reason: triage_reason(task, request.tasks, now),
+        })
+        .collect()
+}
+
+fn triage_candidates<'a>(
+    tasks: &'a [Task],
+    branch: &str,
+    project: Option<&str>,
+    include_blocked: bool,
+) -> Vec<&'a Task> {
+    let now = Utc::now();
+    let mut candidates: Vec<&Task> = tasks
+        .iter()
+        .filter(|task| task.status != Status::Done)
+        .filter(|task| task.branch == branch)
+        .filter(|task| project.map_or(true, |project| task.project == project))
+        .filter(|task| include_blocked || !task.is_blocked(tasks))
+        .collect();
+    candidates.sort_by_key(|task| next_key(task, now));
+    candidates
+}
+
+pub fn triage_candidate_count(
+    tasks: &[Task],
+    branch: &str,
+    project: Option<&str>,
+    include_blocked: bool,
+) -> usize {
+    triage_candidates(tasks, branch, project, include_blocked).len()
+}
+
+fn triage_reason(task: &Task, tasks: &[Task], now: chrono::DateTime<Utc>) -> String {
+    let mut reasons = Vec::new();
+    if let Some(due) = task.due {
+        let due_date = due.with_timezone(&chrono::Local).date_naive();
+        if due < now {
+            reasons.push(format!("overdue since {due_date}"));
+        } else if due_date == now.with_timezone(&chrono::Local).date_naive() {
+            reasons.push("due today".into());
+        } else {
+            reasons.push(format!("due {due_date}"));
+        }
+    }
+    if task.status == Status::Doing {
+        reasons.push("already in progress".into());
+    }
+    match task.priority {
+        Priority::Urgent => reasons.push("urgent priority".into()),
+        Priority::High => reasons.push("high priority".into()),
+        _ => {}
+    }
+    let blockers = task
+        .blocked_by
+        .iter()
+        .filter(|id| {
+            tasks
+                .iter()
+                .any(|candidate| candidate.id == **id && candidate.status != Status::Done)
+        })
+        .count();
+    if blockers > 0 {
+        reasons.push(format!("blocked by {blockers} open task(s)"));
+    }
+    if reasons.is_empty() {
+        reasons.push("next by priority and due date".into());
+    }
+    reasons.join("; ")
+}
+
+pub fn request_triage(
+    provider: &dyn Provider,
+    config: &AiConfig,
+    request: TriageRequest<'_>,
+) -> Result<TriageResponse> {
+    let prompt = triage_prompt(config, &request);
+    let raw = generate(provider, &prompt)?;
+    parse_triage_response(&raw, request.limit)
+}
+
+fn triage_prompt(config: &AiConfig, request: &TriageRequest<'_>) -> String {
+    let candidates = triage_candidates(
+        request.tasks,
+        request.branch,
+        request.project,
+        request.include_blocked,
+    );
+    let include_detail = config.include_descriptions && request.include_descriptions;
+    let context = if candidates.is_empty() {
+        "(none)".to_string()
+    } else {
+        candidates
+            .iter()
+            .take(config.max_context_tasks)
+            .map(|task| triage_context_line(task, request.tasks, include_detail, config.redact))
+            .collect::<Vec<_>>()
+            .join("\n")
+    };
+    let project = request.project.unwrap_or("all");
+    format!(
+        r#"You are Tasklynx, a local developer task triage assistant.
+Return exactly one JSON object with this shape:
+{{"summary":"one short sentence","picks":[{{"id":"task id","reason":"short reason"}}]}}
+
+Rules:
+- Pick at most {limit} tasks.
+- Use only task ids present in the context below.
+- Prefer in-progress, overdue, urgent, and high-priority work in that order.
+- Keep each reason under 160 characters.
+- Never invent tasks or include secrets, tokens, or credentials.
+
+Branch: {branch}
+Project filter: {project}
+
+Eligible open tasks:
+{context}
+"#,
+        limit = request.limit,
+        branch = request.branch,
+    )
+}
+
+fn triage_context_line(
+    task: &Task,
+    tasks: &[Task],
+    include_description: bool,
+    redact: bool,
+) -> String {
+    let title = if redact {
+        redact_text(&task.title)
+    } else {
+        task.title.clone()
+    };
+    let due = task
+        .due
+        .map(|due| due.format("%Y-%m-%d").to_string())
+        .unwrap_or_else(|| "none".into());
+    let blockers = task
+        .blocked_by
+        .iter()
+        .filter(|id| {
+            tasks
+                .iter()
+                .any(|candidate| candidate.id == **id && candidate.status != Status::Done)
+        })
+        .count();
+    let short_id = task.id.to_string();
+    let mut line = format!(
+        "- id={} | project={} | priority={} | status={} | due={} | blocked_by={} | title={}",
+        &short_id[..8],
+        task.project,
+        task.priority,
+        task.status,
+        due,
+        blockers,
+        title
+    );
+    if include_description && !task.description.trim().is_empty() {
+        let description = if redact {
+            redact_text(&task.description)
+        } else {
+            task.description.clone()
+        };
+        line.push_str(&format!(
+            " | description={}",
+            description.replace(['\r', '\n'], " ")
+        ));
+    }
+    line
+}
+
+pub fn parse_triage_response(raw: &str, limit: usize) -> Result<TriageResponse> {
+    if limit == 0 {
+        bail!("triage limit must be at least 1");
+    }
+    let mut response: TriageResponse = serde_json::from_str(json_object(raw)?)
+        .context("AI returned an invalid triage response")?;
+    response.summary = response.summary.trim().to_string();
+    if response.summary.is_empty() {
+        response.summary = "AI triage".into();
+    }
+    if response.summary.chars().count() > 1000 {
+        response.summary = response.summary.chars().take(1000).collect();
+    }
+    if response.picks.is_empty() {
+        bail!("AI returned no triage picks");
+    }
+    if response.picks.len() > limit {
+        bail!(
+            "AI returned {} triage picks, exceeding the limit of {limit}",
+            response.picks.len()
+        );
+    }
+    let mut seen = HashSet::new();
+    let mut picks = Vec::new();
+    for pick in response.picks {
+        let id = pick.id.trim().to_string();
+        if id.is_empty() {
+            bail!("AI returned a triage pick with an empty task id");
+        }
+        if id.chars().count() > 64 {
+            bail!("AI returned a triage task id longer than 64 characters");
+        }
+        if !seen.insert(id.clone()) {
+            continue;
+        }
+        let mut reason = pick.reason.trim().to_string();
+        if reason.is_empty() {
+            reason = "selected by AI".into();
+        }
+        if reason.chars().count() > 400 {
+            reason = reason.chars().take(400).collect();
+        }
+        picks.push(DraftTriagePick { id, reason });
+    }
+    if picks.is_empty() {
+        bail!("AI returned no usable triage picks");
+    }
+    response.picks = picks;
+    Ok(response)
+}
+
+pub fn resolve_triage(
+    response: &TriageResponse,
+    tasks: &[Task],
+    branch: &str,
+    project: Option<&str>,
+    include_blocked: bool,
+) -> Result<Vec<TriagePick>> {
+    let mut seen = HashSet::new();
+    let mut picks = Vec::new();
+    for pick in &response.picks {
+        let id = pick.id.trim().to_ascii_lowercase();
+        let task = if let Ok(uuid) = uuid::Uuid::parse_str(&id) {
+            tasks.iter().find(|task| task.id == uuid)
+        } else {
+            let matches: Vec<&Task> = tasks
+                .iter()
+                .filter(|task| task.id.to_string().starts_with(&id))
+                .collect();
+            match matches.as_slice() {
+                [task] => Some(*task),
+                [] => None,
+                _ => bail!("AI triage id '{id}' is ambiguous"),
+            }
+        }
+        .ok_or_else(|| anyhow!("AI triage referenced unknown task id '{id}'"))?;
+        if task.status == Status::Done
+            || task.branch != branch
+            || project.is_some_and(|project| task.project != project)
+            || (!include_blocked && task.is_blocked(tasks))
+        {
+            bail!("AI triage referenced task '{id}' that is not eligible");
+        }
+        if !seen.insert(task.id) {
+            continue;
+        }
+        picks.push(TriagePick {
+            task_id: task.id,
+            reason: pick.reason.clone(),
+        });
+    }
+    Ok(picks)
+}
+
+pub fn request_report(
+    provider: &dyn Provider,
+    config: &AiConfig,
+    request: ReportRequest<'_>,
+) -> Result<Report> {
+    let prompt = report_prompt(config, &request);
+    let raw = generate(provider, &prompt)?;
+    parse_report(&raw, request.limit)
+}
+
+fn report_prompt(config: &AiConfig, request: &ReportRequest<'_>) -> String {
+    let cutoff = Utc::now() - Duration::days(i64::from(request.days));
+    let include_detail = config.include_descriptions && request.include_descriptions;
+    let mut selected: Vec<&Task> = request
+        .tasks
+        .iter()
+        .filter(|task| task.branch == request.branch)
+        .filter(|task| {
+            request
+                .project
+                .map_or(true, |project| task.project == project)
+        })
+        .filter(|task| match task.status {
+            Status::Done => task
+                .completed_at
+                .is_some_and(|completed| completed >= cutoff),
+            _ => true,
+        })
+        .collect();
+    selected.sort_by_key(|task| {
+        let status = match task.status {
+            Status::Doing => 0,
+            Status::Todo if task.is_blocked(request.tasks) => 1,
+            Status::Todo => 2,
+            Status::Done => 3,
+        };
+        (status, std::cmp::Reverse(task.updated_at))
+    });
+    selected.truncate(config.max_context_tasks);
+    let context = if selected.is_empty() {
+        "(none)".to_string()
+    } else {
+        selected
+            .iter()
+            .map(|task| report_context_line(task, request.tasks, include_detail, config.redact))
+            .collect::<Vec<_>>()
+            .join("\n")
+    };
+    let project = request.project.unwrap_or("all");
+    format!(
+        r#"You are Tasklynx, a concise developer {label} assistant.
+Return exactly one JSON object with this shape:
+{{"summary":"one or two sentences","sections":[{{"title":"Done|Doing|Blocked|Next","items":["short bullet"]}}]}}
+
+Rules:
+- Write a {label} from the context below.
+- Use at most {limit} bullets across all sections.
+- Only state facts present in the context; do not invent work.
+- Prefer concrete outcomes over activity.
+- Never include secrets, tokens, or credentials.
+
+Branch: {branch}
+Project filter: {project}
+Window: last {days} day(s)
+
+Tasks:
+{context}
+"#,
+        label = request.kind.label(),
+        limit = request.limit,
+        branch = request.branch,
+        days = request.days,
+    )
+}
+
+fn report_context_line(
+    task: &Task,
+    tasks: &[Task],
+    include_description: bool,
+    redact: bool,
+) -> String {
+    let title = if redact {
+        redact_text(&task.title)
+    } else {
+        task.title.clone()
+    };
+    let due = task
+        .due
+        .map(|due| due.format("%Y-%m-%d").to_string())
+        .unwrap_or_else(|| "none".into());
+    let completed = task
+        .completed_at
+        .map(|completed| completed.format("%Y-%m-%d").to_string())
+        .unwrap_or_else(|| "none".into());
+    let blocked = if task.is_blocked(tasks) { "yes" } else { "no" };
+    let short_id = task.id.to_string();
+    let mut line = format!(
+        "- id={} | project={} | priority={} | status={} | due={} | completed={} | blocked={} | title={}",
+        &short_id[..8],
+        task.project,
+        task.priority,
+        task.status,
+        due,
+        completed,
+        blocked,
+        title
+    );
+    if include_description && !task.description.trim().is_empty() {
+        let description = if redact {
+            redact_text(&task.description)
+        } else {
+            task.description.clone()
+        };
+        line.push_str(&format!(
+            " | description={}",
+            description.replace(['\r', '\n'], " ")
+        ));
+    }
+    line
+}
+
+pub fn parse_report(raw: &str, limit: usize) -> Result<Report> {
+    if limit == 0 {
+        bail!("report limit must be at least 1");
+    }
+    let mut report: Report =
+        serde_json::from_str(json_object(raw)?).context("AI returned an invalid report")?;
+    report.summary = report.summary.trim().to_string();
+    if report.summary.is_empty() {
+        bail!("AI returned an empty report summary");
+    }
+    if report.summary.chars().count() > 2000 {
+        report.summary = report.summary.chars().take(2000).collect();
+    }
+    if report.sections.len() > 8 {
+        bail!("AI returned too many report sections");
+    }
+    let mut total_items = 0;
+    for section in &mut report.sections {
+        section.title = section.title.trim().to_string();
+        if section.title.is_empty() {
+            bail!("AI returned a report section with an empty title");
+        }
+        if section.title.chars().count() > 80 {
+            section.title = section.title.chars().take(80).collect();
+        }
+        section.items = std::mem::take(&mut section.items)
+            .into_iter()
+            .map(|item| item.trim().to_string())
+            .filter(|item| !item.is_empty())
+            .map(|item| item.chars().take(500).collect())
+            .collect();
+        total_items += section.items.len();
+    }
+    if total_items == 0 {
+        bail!("AI returned a report without any bullet items");
+    }
+    if total_items > limit {
+        bail!("AI returned {total_items} report items, exceeding the limit of {limit}");
+    }
+    Ok(report)
+}
+
+pub fn request_answer(
+    provider: &dyn Provider,
+    config: &AiConfig,
+    request: AskRequest<'_>,
+) -> Result<AiAnswer> {
+    let prompt = ask_prompt(config, &request);
+    let raw = generate(provider, &prompt)?;
+    parse_answer(&raw)
+}
+
+fn ask_prompt(config: &AiConfig, request: &AskRequest<'_>) -> String {
+    let context = context_text_limited(
+        request.tasks,
+        request.branch,
+        request.project,
+        config,
+        request.include_descriptions,
+        request.limit,
+    );
+    let project = request.project.unwrap_or("all");
+    format!(
+        r#"You are Tasklynx, a local developer task assistant.
+Answer the user's question using only the task context below.
+Return exactly one JSON object with this shape:
+{{"answer":"concise answer"}}
+
+Rules:
+- If the context does not contain the answer, say so.
+- Do not invent tasks, commits, deadlines, or blockers.
+- Never include secrets, tokens, or credentials.
+
+Branch: {branch}
+Project filter: {project}
+Context (up to {limit} open tasks):
+{context}
+
+Question: {question}
+"#,
+        branch = request.branch,
+        limit = request.limit,
+        question = request.question,
+    )
+}
+
+pub fn parse_answer(raw: &str) -> Result<AiAnswer> {
+    let mut answer: AiAnswer =
+        serde_json::from_str(json_object(raw)?).context("AI returned an invalid answer")?;
+    answer.answer = answer.answer.trim().to_string();
+    if answer.answer.is_empty() {
+        bail!("AI returned an empty answer");
+    }
+    if answer.answer.chars().count() > 4000 {
+        answer.answer = answer.answer.chars().take(4000).collect();
+    }
+    Ok(answer)
+}
+
+fn json_object(raw: &str) -> Result<&str> {
+    let start = raw
+        .find('{')
+        .ok_or_else(|| anyhow!("AI response did not contain a JSON object"))?;
+    let end = raw
+        .rfind('}')
+        .ok_or_else(|| anyhow!("AI response did not contain a complete JSON object"))?;
+    if end < start {
+        bail!("AI response contained malformed JSON");
+    }
+    Ok(&raw[start..=end])
 }
 
 pub fn plan_prompt(
@@ -449,6 +1069,24 @@ fn context_text(
     config: &AiConfig,
     include_descriptions: bool,
 ) -> String {
+    context_text_limited(
+        tasks,
+        branch,
+        project,
+        config,
+        include_descriptions,
+        config.max_context_tasks,
+    )
+}
+
+fn context_text_limited(
+    tasks: &[Task],
+    branch: &str,
+    project: Option<&str>,
+    config: &AiConfig,
+    include_descriptions: bool,
+    limit: usize,
+) -> String {
     let include_detail = config.include_descriptions && include_descriptions;
     let mut selected: Vec<&Task> = tasks
         .iter()
@@ -457,7 +1095,7 @@ fn context_text(
         .filter(|task| project.map_or(true, |project| task.project == project))
         .collect();
     selected.sort_by_key(|task| (std::cmp::Reverse(task.priority.clone()), task.created_at));
-    selected.truncate(config.max_context_tasks);
+    selected.truncate(limit.min(config.max_context_tasks));
     if selected.is_empty() {
         return "(none)".into();
     }
@@ -1065,5 +1703,168 @@ mod tests {
         assert!(with_details.contains("Detailed context"));
         let without_details = plan_prompt(&config, "plan", &[open], "main", None, 5, false);
         assert!(!without_details.contains("Detailed context"));
+    }
+
+    #[test]
+    fn offline_triage_orders_open_work_and_skips_blocked() {
+        let mut blocker = task("Blocker");
+        blocker.status = Status::Doing;
+        let mut blocked = task("Blocked urgent");
+        blocked.priority = Priority::Urgent;
+        blocked.status = Status::Doing;
+        blocked.blocked_by.push(blocker.id);
+        let mut done = task("Done task");
+        done.status = Status::Done;
+        let mut other_branch = task("Other branch");
+        other_branch.branch = "feature".into();
+        let tasks = vec![
+            blocker.clone(),
+            blocked.clone(),
+            done,
+            other_branch,
+            task("Normal task"),
+        ];
+
+        let picks = deterministic_triage(TriageRequest {
+            tasks: &tasks,
+            branch: "main",
+            project: None,
+            limit: 5,
+            include_blocked: false,
+            include_descriptions: true,
+        });
+        assert_eq!(picks.len(), 2);
+        assert_eq!(picks[0].task_id, blocker.id);
+        assert!(picks.iter().all(|pick| pick.task_id != blocked.id));
+
+        let picks = deterministic_triage(TriageRequest {
+            tasks: &tasks,
+            branch: "main",
+            project: None,
+            limit: 1,
+            include_blocked: true,
+            include_descriptions: true,
+        });
+        assert_eq!(picks.len(), 1);
+        assert_eq!(picks[0].task_id, blocked.id);
+        assert!(picks[0].reason.contains("blocked by 1"));
+    }
+
+    #[test]
+    fn triage_response_parsing_is_strict() {
+        let response = parse_triage_response(
+            r#"```json
+            {"summary":"Focus on the blocker","picks":[
+              {"id":"abc","reason":"overdue"},
+              {"id":"abc","reason":"duplicate"}
+            ]}
+            ```"#,
+            3,
+        )
+        .unwrap();
+        assert_eq!(response.summary, "Focus on the blocker");
+        assert_eq!(response.picks.len(), 1);
+        assert_eq!(response.picks[0].id, "abc");
+        assert!(parse_triage_response(r#"{"picks":[]}"#, 3).is_err());
+        assert!(parse_triage_response(
+            r#"{"picks":[{"id":"a"},{"id":"b"},{"id":"c"},{"id":"d"}]}"#,
+            3
+        )
+        .is_err());
+        assert!(parse_triage_response(r#"not json"#, 3).is_err());
+    }
+
+    #[test]
+    fn resolves_triage_ids_by_prefix() {
+        let first = task("First");
+        let second = task("Second");
+        let tasks = vec![first.clone(), second.clone()];
+        let response = TriageResponse {
+            summary: "pick".into(),
+            picks: vec![
+                DraftTriagePick {
+                    id: first.id.to_string()[..8].into(),
+                    reason: "start here".into(),
+                },
+                DraftTriagePick {
+                    id: second.id.to_string(),
+                    reason: "then this".into(),
+                },
+            ],
+        };
+        let picks = resolve_triage(&response, &tasks, "main", None, false).unwrap();
+        assert_eq!(picks[0].task_id, first.id);
+        assert_eq!(picks[1].task_id, second.id);
+
+        let response = TriageResponse {
+            summary: "bad".into(),
+            picks: vec![DraftTriagePick {
+                id: "does-not-exist".into(),
+                reason: String::new(),
+            }],
+        };
+        assert!(resolve_triage(&response, &tasks, "main", None, false).is_err());
+
+        let mut done = task("Done");
+        done.status = Status::Done;
+        let tasks = vec![done.clone()];
+        let response = TriageResponse {
+            summary: "done".into(),
+            picks: vec![DraftTriagePick {
+                id: done.id.to_string(),
+                reason: String::new(),
+            }],
+        };
+        let error = resolve_triage(&response, &tasks, "main", None, false).unwrap_err();
+        assert!(error.to_string().contains("not eligible"), "{error}");
+    }
+
+    #[test]
+    fn parses_reports_and_answers() {
+        let report = parse_report(
+            r#"{"summary":"Shipped the API","sections":[
+              {"title":"Done","items":["Added endpoint",""]},
+              {"title":"Next","items":["Write tests"]}
+            ]}"#,
+            5,
+        )
+        .unwrap();
+        assert_eq!(report.summary, "Shipped the API");
+        assert_eq!(report.sections[0].items, vec!["Added endpoint"]);
+        assert!(parse_report(r#"{"summary":"empty"}"#, 5).is_err());
+        assert!(parse_report(
+            r#"{"summary":"too many","sections":[{"title":"A","items":["1","2"]}]}"#,
+            1
+        )
+        .is_err());
+
+        let answer = parse_answer(r#"{"answer":"  Do the blocker first.  "}"#).unwrap();
+        assert_eq!(answer.answer, "Do the blocker first.");
+        assert!(parse_answer(r#"{"answer":"   "}"#).is_err());
+    }
+
+    #[test]
+    fn report_prompt_includes_recent_completed_work() {
+        let config = AiConfig::default();
+        let mut completed = task("Finished today");
+        completed.status = Status::Done;
+        completed.completed_at = Some(Utc::now());
+        let mut closed = task("Finished long ago");
+        closed.status = Status::Done;
+        closed.completed_at = Some(Utc::now() - Duration::days(60));
+        let prompt = report_prompt(
+            &config,
+            &ReportRequest {
+                kind: ReportKind::Standup,
+                tasks: &[completed, closed],
+                branch: "main",
+                project: None,
+                days: 1,
+                limit: 5,
+                include_descriptions: true,
+            },
+        );
+        assert!(prompt.contains("Finished today"), "{prompt}");
+        assert!(!prompt.contains("Finished long ago"), "{prompt}");
     }
 }
