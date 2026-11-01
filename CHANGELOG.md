@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.0.1-b1 - 2026-11-01
+## 0.0.1-b4 - 2026-11-01
 
 - Added `tx next` with priority, due-date, and blocker-aware ranking.
 - Added task dependencies with `tx block` and `tx unblock`.

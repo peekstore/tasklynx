@@ -4,7 +4,7 @@
 #           Android Termux (arm64-v8a, armeabi-v7a, x86_64)
 # Usage:
 #   curl -fsSL https://raw.githubusercontent.com/peekstore/tasklynx/main/installer.sh | sh
-#   TASKLYNX_VERSION=v0.0.1-b1 ... | sh   # pin a version
+#   TASKLYNX_VERSION=v0.0.1-b4 ... | sh   # pin a version
 #   sh installer.sh --update                   # re-download/update
 #   sh installer.sh --selfuninstall            # remove binaries
 #   sh installer.sh --selfuninstall --purge    # remove everything incl. config
@@ -77,7 +77,7 @@ if [ -z "$VERSION" ] && command -v curl >/dev/null 2>&1; then
     VERSION=$(curl -fsSL "$VERSION_URL" 2>/dev/null | tr -d ' \n\r' || true)
 fi
 if [ -z "$VERSION" ]; then
-    VERSION="v0.0.1-b1"
+    VERSION="v0.0.1-b4"
 fi
 case "$VERSION" in
     v*) ;;

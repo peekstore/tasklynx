@@ -9,7 +9,7 @@ const https = require('https');
 const http = require('http');
 const { spawnSync } = require('child_process');
 
-const VERSION = '0.0.1-b1';
+const VERSION = '0.0.1-b4';
 const GITHUB_REPO = 'peekstore/tasklynx';
 const MIN_BINARY_SIZE = 100 * 1024; // 100 KB sanity check
 

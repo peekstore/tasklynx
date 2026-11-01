@@ -21,7 +21,7 @@ fi
 FULL_VERSION="${RAW_VERSION#v}"
 TAG="v${FULL_VERSION}"
 
-# PEP 440 version (e.g. 0.0.1-beta-3 -> 0.0.1b3, 0.0.1-b1 -> 0.0.1b1)
+# PEP 440 version (e.g. 0.0.1-beta-3 -> 0.0.1b3, 0.0.1-b4 -> 0.0.1b4)
 PEP440_VERSION=$(echo "$FULL_VERSION" | sed -E 's/[-.]beta[-.]?/b/' | sed -E 's/[-.]b([0-9]+)$/b\1/' | sed -E 's/[-.]alpha[-.]?/a/' | sed -E 's/[-.]rc[-.]?/rc/')
 
 echo "Synchronizing version across project:"
