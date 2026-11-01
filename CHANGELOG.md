@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.0.1-b1 - 2026-11-01
 
 - Added `tx next` with priority, due-date, and blocker-aware ranking.
 - Added task dependencies with `tx block` and `tx unblock`.
@@ -34,6 +34,7 @@
 - Added saved list filters and views with `tx view save|list|show|run|delete` and `tx list --view`.
 - Added bulk completion with `tx complete --done-before <date>`, `--all`, and `--force`.
 - Added title similarity detection with `tx duplicates` and warnings when `tx add` finds a similar open task.
+- Removed the automatic version-sync workflow; releases are now versioned and tagged explicitly.
 
 ## 0.0.1-beta-4
 

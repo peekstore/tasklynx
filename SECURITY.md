@@ -6,7 +6,7 @@ Tasklynx is pre-1.0 software. Security fixes are applied to the latest published
 
 | Version | Supported |
 | --- | --- |
-| `0.0.1-beta.x` (latest) | Yes |
+| `0.0.1-b.x` (latest) | Yes |
 | Older releases | No |
 
 ## Reporting a vulnerability
