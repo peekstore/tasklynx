@@ -31,7 +31,7 @@ $packageArgs = @{
   fileFullPath  = $destExe
   url           = $downloadUrl
   url64bit      = $url64
-  checksum64    = 'd41756d4a36d5cf0e0d3a94e672d8629ca884919f8ba02e6ec346e04324e8725'
+  checksum64    = '8851e2dd4fdc5c5159cafd43468aa10adef00da99896788b40ecd0d10d134f8a'
   checksumType64= 'sha256'
 }
 
