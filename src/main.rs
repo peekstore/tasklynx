@@ -692,6 +692,38 @@ fn marker_in_line(line: &str) -> Option<(&'static str, usize, String)> {
     best
 }
 
+fn is_scannable_path(path: &std::path::Path) -> bool {
+    const SKIP_DIRS: &[&str] = &[
+        "vendor",
+        "node_modules",
+        "target",
+        "dist",
+        "build",
+        "out",
+        "coverage",
+        "third_party",
+        "external",
+        "deps",
+        "bower_components",
+        "pods",
+        ".venv",
+        "venv",
+        "site-packages",
+        ".next",
+        ".nuxt",
+    ];
+    let Some(parent) = path.parent() else {
+        return true;
+    };
+    parent.components().all(|component| {
+        let std::path::Component::Normal(name) = component else {
+            return true;
+        };
+        let name = name.to_string_lossy();
+        !SKIP_DIRS.iter().any(|skip| name.eq_ignore_ascii_case(skip))
+    })
+}
+
 fn scan_repo(
     data: &model::ProjectData,
     info: &git::GitInfo,
@@ -705,6 +737,9 @@ fn scan_repo(
     for relative in files {
         if tasks.len() >= limit {
             break;
+        }
+        if !is_scannable_path(&relative) {
+            continue;
         }
         let path = info.root.join(&relative);
         let Ok(metadata) = std::fs::metadata(&path) else {
@@ -823,6 +858,25 @@ fn commit_task_id(body: &str) -> Option<String> {
             Some(value.to_string())
         }
     })
+}
+
+fn subject_task_id(body: &str, tasks: &[Task]) -> Option<String> {
+    let subject = body.lines().next().unwrap_or_default();
+    for token in subject.split(|ch: char| !(ch.is_ascii_hexdigit() || ch == '-')) {
+        let token = token.trim_matches('-').to_ascii_lowercase();
+        if token.len() < 8 {
+            continue;
+        }
+        let mut matches = tasks
+            .iter()
+            .filter(|task| task.id.to_string().starts_with(&token));
+        if let Some(first) = matches.next() {
+            if matches.next().is_none() {
+                return Some(first.id.to_string());
+            }
+        }
+    }
+    None
 }
 
 #[cfg(target_os = "macos")]
@@ -1556,6 +1610,14 @@ async fn main() -> Result<()> {
                         println!("git branch: {}", info.branch);
                         println!("head: {}", info.commit.as_deref().unwrap_or("-"));
                         println!("remote: {}", info.remote.as_deref().unwrap_or("-"));
+                        if info.workspace.is_dirty() {
+                            println!(
+                                "workspace: dirty ({} changed, {} untracked)",
+                                info.workspace.changed_files, info.workspace.untracked_files
+                            );
+                        } else {
+                            println!("workspace: clean");
+                        }
                         println!("tasklynx branch: {}", data.current_branch);
                         let mapped = git::task_branch(&info.branch, &config.git.branch_prefix);
                         println!(
@@ -1647,7 +1709,9 @@ async fn main() -> Result<()> {
                     let mut linked = 0usize;
                     let mut matched = 0usize;
                     for commit in commits {
-                        let Some(task_id) = commit_task_id(&commit.body) else {
+                        let Some(task_id) = commit_task_id(&commit.body)
+                            .or_else(|| subject_task_id(&commit.body, &data.tasks))
+                        else {
                             continue;
                         };
                         matched += 1;
@@ -1672,7 +1736,7 @@ async fn main() -> Result<()> {
                     } else if matched > 0 {
                         println!("no new commit links");
                     } else {
-                        println!("no matching Tasklynx-Id trailers");
+                        println!("no matching Tasklynx-Id trailers or task IDs in subjects");
                     }
                 }
             }
@@ -1741,6 +1805,8 @@ async fn main() -> Result<()> {
                         .ok_or_else(|| anyhow::anyhow!("not in a git repository"))?;
                     let path = install_git_hook(&info)?;
                     println!("installed hook: {}", path.display());
+                    println!("hook script for review:");
+                    print!("{HOOK_SCRIPT}");
                 }
                 HookCmd::Uninstall => {
                     let info = git::discover()

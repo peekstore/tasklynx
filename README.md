@@ -244,6 +244,8 @@ Run `tx <command> --help` for the full flag list. See the [CLI reference](https:
 
 ## Configuration
 
+For focused walkthroughs, see [Git integration](docs/git-integration.md) and [AI setup](docs/ai-setup.md).
+
 Configuration lives at:
 
 ```

@@ -1,6 +1,18 @@
 use std::path::PathBuf;
 use std::process::Command;
 
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct WorkspaceState {
+    pub changed_files: usize,
+    pub untracked_files: usize,
+}
+
+impl WorkspaceState {
+    pub fn is_dirty(&self) -> bool {
+        self.changed_files > 0 || self.untracked_files > 0
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct GitInfo {
     pub root: PathBuf,
@@ -8,6 +20,7 @@ pub struct GitInfo {
     pub branch: String,
     pub commit: Option<String>,
     pub remote: Option<String>,
+    pub workspace: WorkspaceState,
 }
 
 #[derive(Debug, Clone)]
@@ -34,6 +47,7 @@ impl GitInfo {
             branch,
             commit,
             remote,
+            workspace: workspace_state(),
         })
     }
 
@@ -59,6 +73,31 @@ pub fn task_branch(git_branch: &str, prefix: &str) -> Option<String> {
     } else {
         Some(mapped.to_string())
     }
+}
+
+fn workspace_state() -> WorkspaceState {
+    let Ok(output) = Command::new("git").args(["status", "--porcelain"]).output() else {
+        return WorkspaceState::default();
+    };
+    if !output.status.success() {
+        return WorkspaceState::default();
+    }
+    parse_workspace_status(&String::from_utf8_lossy(&output.stdout))
+}
+
+fn parse_workspace_status(output: &str) -> WorkspaceState {
+    let mut state = WorkspaceState::default();
+    for line in output.lines() {
+        if line.len() < 2 {
+            continue;
+        }
+        if line.starts_with("??") {
+            state.untracked_files += 1;
+        } else {
+            state.changed_files += 1;
+        }
+    }
+    state
 }
 
 fn git_output(args: &[&str]) -> Option<String> {
@@ -190,6 +229,16 @@ mod tests {
             remote_web_url("ssh://git@github.com/peekstore/tasklynx.git").as_deref(),
             Some("https://github.com/peekstore/tasklynx")
         );
+    }
+
+    #[test]
+    fn parses_porcelain_workspace_state() {
+        let state = parse_workspace_status(" M src/main.rs\n?? new.txt\nA  added.txt\n");
+        assert_eq!(state.changed_files, 2);
+        assert_eq!(state.untracked_files, 1);
+        assert!(state.is_dirty());
+        assert_eq!(parse_workspace_status(""), WorkspaceState::default());
+        assert!(!WorkspaceState::default().is_dirty());
     }
 
     #[test]

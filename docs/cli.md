@@ -299,7 +299,7 @@ tx git open <id>
 tx git open <id> --print
 ```
 
-`tx git status` reports the repository root, Git branch, mapped Tasklynx branch, HEAD, remote, recent commits, and open tasks on the current Tasklynx branch. `tx git link` stores the commit, Git branch, and remote URL on the task. When `--commit` is omitted, `HEAD` is used. `--pr` stores a pull request or merge request URL, and `--issue` stores an issue URL.
+`tx git status` reports the repository root, Git branch, mapped Tasklynx branch, HEAD, remote, workspace clean/dirty state, recent commits, and open tasks on the current Tasklynx branch. `tx git link` stores the commit, Git branch, and remote URL on the task. When `--commit` is omitted, `HEAD` is used. `--pr` stores a pull request or merge request URL, and `--issue` stores an issue URL.
 
 With `[git] auto_branch = true` (the default), `tx add` maps the current Git branch to a Tasklynx branch by stripping `branch_prefix` (`tx/auth` becomes `auth`) and switches to it. With `link_commits = true`, the new task also records the current Git branch, remote, and `HEAD` commit. Set either option to `false` to keep manual branch and commit linking.
 
@@ -313,7 +313,7 @@ tx git scan --apply
 tx git scan --apply --project backend --limit 50
 ```
 
-`tx git scan` searches tracked files for `TODO`, `FIXME`, and `HACK` comments. Preview mode prints file paths and line numbers without changing the store. `--apply` creates tasks with the source path, line number, Git commit, and branch attached. Already-scanned locations are skipped, so rerunning the command is safe.
+`tx git scan` searches tracked files for `TODO`, `FIXME`, and `HACK` comments. Preview mode prints file paths and line numbers without changing the store. `--apply` creates tasks with the source path, line number, Git commit, and branch attached. Already-scanned locations are skipped, so rerunning the command is safe. Vendored and generated directories such as `vendor/`, `node_modules/`, `target/`, `build/`, and `dist/` are skipped.
 
 ### Commit trailers and hooks
 
@@ -328,8 +328,8 @@ tx git hook uninstall
 ```
 
 - `tx git activate` stores the task ID in the repository's local Git config.
-- `tx git hook install` installs an opt-in `prepare-commit-msg` hook that appends a `Tasklynx-Id: <uuid>` trailer when a task is active.
-- `tx git sync` scans recent commits for that trailer and links matching tasks to the commit.
+- `tx git hook install` installs an opt-in `prepare-commit-msg` hook that appends a `Tasklynx-Id: <uuid>` trailer when a task is active. The hook script is printed for review.
+- `tx git sync` scans recent commits for that trailer or a task ID in the commit subject and links matching tasks to the commit.
 - `tx git deactivate` clears the active task.
 - `tx git hook uninstall` removes only a hook installed by Tasklynx.
 

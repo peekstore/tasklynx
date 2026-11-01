@@ -21,6 +21,8 @@ Tasklynx is a local-first task manager for developers. It combines a scriptable 
 | [Installation](installation.md) | Every install method, updates, and uninstall |
 | [CLI Reference](cli.md) | Commands, flags, and examples |
 | [Configuration](configuration.md) | Config file, data paths, and theming |
+| [Git Integration](git-integration.md) | Branch mapping, commit links, scanning, and hooks |
+| [AI Setup](ai-setup.md) | Providers, privacy controls, and the optional `ai` feature |
 
 ## Understand the project
 

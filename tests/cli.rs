@@ -1058,6 +1058,62 @@ fn git_help_lists_new_commands() {
 }
 
 #[test]
+fn git_status_reports_workspace_state() {
+    if !git_available() {
+        return;
+    }
+
+    let env = TestEnv::new("git-workspace");
+    env.ok(&["init"]);
+    let repo = env.root.join("workspace-repo");
+    init_git_repo(&repo);
+
+    let clean = env.ok_in(&repo, &["git", "status"]);
+    assert!(clean.contains("workspace: clean"), "{clean}");
+
+    std::fs::write(repo.join("untracked.txt"), "new\n").unwrap();
+    let untracked = env.ok_in(&repo, &["git", "status"]);
+    assert!(untracked.contains("workspace: dirty"), "{untracked}");
+    assert!(untracked.contains("0 changed, 1 untracked"), "{untracked}");
+
+    git_ok(&repo, &["add", "untracked.txt"]);
+    let staged = env.ok_in(&repo, &["git", "status"]);
+    assert!(staged.contains("workspace: dirty"), "{staged}");
+    assert!(staged.contains("1 changed, 0 untracked"), "{staged}");
+}
+
+#[test]
+fn git_sync_links_task_id_in_subject() {
+    if !git_available() {
+        return;
+    }
+
+    let env = TestEnv::new("git-subject-sync");
+    env.ok(&["init"]);
+    let repo = env.root.join("subject-sync-repo");
+    init_git_repo(&repo);
+    let id = env
+        .ok_in(&repo, &["add", "Subject linked task"])
+        .trim()
+        .to_string();
+
+    std::fs::write(repo.join("feature.txt"), "work\n").unwrap();
+    git_ok(&repo, &["add", "."]);
+    git_ok(
+        &repo,
+        &["commit", "-qm", &format!("Implement {} feature", &id[..8])],
+    );
+    let head = git_ok(&repo, &["rev-parse", "--short=12", "HEAD"])
+        .trim()
+        .to_string();
+
+    let synced = env.ok_in(&repo, &["git", "sync"]);
+    assert!(synced.contains("linked 1 commit(s)"), "{synced}");
+    let json = env.ok_in(&repo, &["export", "--format", "json"]);
+    assert!(json.contains(&format!("\"commit\": \"{head}\"")), "{json}");
+}
+
+#[test]
 fn git_scan_previews_applies_and_dedupes() {
     if !git_available() {
         return;
@@ -1072,6 +1128,17 @@ fn git_scan_previews_applies_and_dedupes() {
         "fn main() {}\n// TODO: implement auth\n// FIXME: handle errors\n",
     )
     .unwrap();
+    for directory in ["vendor", "node_modules/pkg", "target/debug", "build"] {
+        std::fs::create_dir_all(repo.join(directory)).unwrap();
+    }
+    for (path, marker) in [
+        ("vendor/lib.rs", "TODO: vendored skip"),
+        ("node_modules/pkg/index.js", "FIXME: dependency skip"),
+        ("target/debug/generated.rs", "HACK: build skip"),
+        ("build/output.rs", "TODO: output skip"),
+    ] {
+        std::fs::write(repo.join(path), format!("// {marker}\n")).unwrap();
+    }
     git_ok(&repo, &["add", "."]);
     git_ok(&repo, &["commit", "-qm", "add todos"]);
 
@@ -1080,6 +1147,14 @@ fn git_scan_previews_applies_and_dedupes() {
     assert!(preview.contains("TODO: implement auth"), "{preview}");
     assert!(preview.contains("FIXME: handle errors"), "{preview}");
     assert!(preview.contains("found 2 item(s)"), "{preview}");
+    for skipped in [
+        "vendored skip",
+        "dependency skip",
+        "build skip",
+        "output skip",
+    ] {
+        assert!(!preview.contains(skipped), "{preview}");
+    }
     assert!(!env.ok_in(&repo, &["list"]).contains("implement auth"));
 
     let applied = env.ok_in(&repo, &["git", "scan", "--apply", "--project", "backend"]);
@@ -1122,6 +1197,8 @@ fn git_hook_activate_sync_and_uninstall() {
 
     let installed = env.ok_in(&repo, &["git", "hook", "install"]);
     assert!(installed.contains("installed hook"), "{installed}");
+    assert!(installed.contains("hook script for review"), "{installed}");
+    assert!(installed.contains("Tasklynx-Id:"), "{installed}");
     let hook = repo.join(".git").join("hooks").join("prepare-commit-msg");
     assert!(hook.exists());
     let hook_body = std::fs::read_to_string(&hook).unwrap();
