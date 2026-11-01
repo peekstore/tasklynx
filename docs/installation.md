@@ -5,7 +5,7 @@
 - **Linux / macOS:** a POSIX shell (`sh`, `bash`, `zsh`) and `curl` or `wget`.
 - **Windows:** PowerShell 5.1 or newer.
 - **Termux:** the Termux app from F-Droid, with `curl` installed.
-- **From source:** Rust 1.70+ and Git.
+- **From source:** Rust 1.75+ and Git.
 
 No runtime dependencies are required; Tasklynx ships as a single binary.
 
@@ -97,9 +97,9 @@ Install as an isolated command-line tool with automatic binary resolution:
 
 ```bash
 pipx install git+https://github.com/peekstore/tasklynx.git#subdirectory=packaging/pipx
-# or:
-pipx install tasklynx
 ```
+
+The package is not published on PyPI yet, so install it from the repository subdirectory.
 
 ### Chocolatey (Windows)
 
@@ -175,6 +175,8 @@ cargo build --release
 install -Dm755 target/release/tasklynx ~/.local/bin/tasklynx
 ```
 
+Official release and package-manager binaries are built without the `ai` feature. To enable provider-backed AI, build from source with `cargo build --release --features ai` or install with `cargo install --git https://github.com/peekstore/tasklynx.git --locked --features ai`.
+
 ## Update
 
 ```bash
@@ -207,12 +209,6 @@ curl -fsSL https://raw.githubusercontent.com/peekstore/tasklynx/main/installer.s
 
 ```powershell
 & ([scriptblock]::Create((irm https://raw.githubusercontent.com/peekstore/tasklynx/main/installer.ps1))) --selfuninstall
-```
-
-### Nix and NixOS
-
-```bash
-nix profile remove tasklynx
 ```
 
 ### Manual removal

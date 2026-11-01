@@ -101,20 +101,30 @@ if [ -f "${ROOT_DIR}/packaging/pipx/tasklynx/cli.py" ]; then
 fi
 
 # 9. Documentation & Markdown files
-for MD_FILE in "${ROOT_DIR}/README.md" "${ROOT_DIR}/docs/index.md" "${ROOT_DIR}/docs/installation.md" "${ROOT_DIR}/docs/development.md" "${ROOT_DIR}/packaging/npm/README.md" "${ROOT_DIR}/packaging/pipx/README.md"; do
+for MD_FILE in "${ROOT_DIR}/README.md" "${ROOT_DIR}/docs/index.md" "${ROOT_DIR}/docs/getting-started.md" "${ROOT_DIR}/docs/installation.md" "${ROOT_DIR}/docs/development.md" "${ROOT_DIR}/packaging/npm/README.md" "${ROOT_DIR}/packaging/pipx/README.md"; do
   if [ -f "$MD_FILE" ]; then
     sed -i -E "s/tasklynx_[0-9a-zA-Z.-]+_amd64\.deb/tasklynx_${FULL_VERSION}_amd64.deb/g" "$MD_FILE"
     sed -i -E "s|download/v[0-9a-zA-Z.-]+/tasklynx_|download/${TAG}/tasklynx_|g" "$MD_FILE"
+    sed -i -E "s|releases/tag/v[0-9a-zA-Z.-]+|releases/tag/${TAG}|g" "$MD_FILE"
     sed -i -E "s/TASKLYNX_VERSION=v[0-9a-zA-Z.-]+/TASKLYNX_VERSION=${TAG}/g" "$MD_FILE"
     sed -i -E "s/\\\$env:TASKLYNX_VERSION = \"v[0-9a-zA-Z.-]+\"/\$env:TASKLYNX_VERSION = \"${TAG}\"/g" "$MD_FILE"
   fi
 done
+if [ -f "${ROOT_DIR}/README.md" ]; then
+  sed -i -E "s/\\*\\*Current release:\\*\\* \\[\`v[^\`]+\`\\]/**Current release:** [\`${TAG}\`]/" "${ROOT_DIR}/README.md"
+fi
+if [ -f "${ROOT_DIR}/docs/getting-started.md" ]; then
+  sed -i -E "s/Examples target the current \`[^\`]+\` prerelease/Examples target the current \`${FULL_VERSION}\` prerelease/" "${ROOT_DIR}/docs/getting-started.md"
+fi
 if [ -f "${ROOT_DIR}/docs/development.md" ]; then
+  sed -i -E "s|\./tools/sync_version\.sh v[0-9a-zA-Z.-]+|./tools/sync_version.sh ${TAG}|" "${ROOT_DIR}/docs/development.md"
+  sed -i -E "s/git commit -m \"chore\(release\): bump version to v[0-9a-zA-Z.-]+\"/git commit -m \"chore(release): bump version to ${TAG}\"/" "${ROOT_DIR}/docs/development.md"
   sed -i -E "s/git tag -a v[0-9a-zA-Z.-]+ -m \"Tasklynx v[0-9a-zA-Z.-]+\"/git tag -a ${TAG} -m \"Tasklynx ${TAG}\"/" "${ROOT_DIR}/docs/development.md"
   sed -i -E "s/git push origin v[0-9a-zA-Z.-]+/git push origin ${TAG}/" "${ROOT_DIR}/docs/development.md"
 fi
 if [ -f "${ROOT_DIR}/docs/index.md" ]; then
   sed -i -E "s/- \*\*Version:\*\* .*/- **Version:** ${FULL_VERSION}/" "${ROOT_DIR}/docs/index.md"
+  sed -i -E "s/^\\[\`v[^\`]+\`\\]/[\`${TAG}\`]/" "${ROOT_DIR}/docs/index.md"
 fi
 if [ -f "${ROOT_DIR}/.github/ISSUE_TEMPLATE/bug_report.md" ]; then
   sed -i -E "s/e\.g\. [0-9a-zA-Z.-]+ \(run/e.g. ${FULL_VERSION} (run/" "${ROOT_DIR}/.github/ISSUE_TEMPLATE/bug_report.md"

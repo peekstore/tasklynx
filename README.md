@@ -38,16 +38,21 @@ Tasklynx keeps your tasks in a single local JSON file, with no account, no daemo
 
 Everything is written atomically to disk, so a crash can't leave a half-written task store.
 
+**Current release:** [`v0.0.1-b4`](https://github.com/peekstore/tasklynx/releases/tag/v0.0.1-b4) — Git-aware planning, optional AI previews in source builds, recurring work, dependencies, time tracking, reminders, and calendar export.
+
 ## Features
 
 - **Local-first** — tasks live on your machine; nothing is sent anywhere unless you explicitly run an AI command.
 - **Git-style branches** — keep work for different features or releases separate.
 - **Short IDs** — any unique prefix of a task UUID works in commands.
-- **Priorities and due dates** — `low`, `normal`, `high`, `urgent`, with overdue detection.
-- **Projects and tags** — group work and filter instantly.
+- **Priorities, due dates, and recurrence** — `low`, `normal`, `high`, `urgent`, with daily/weekly/monthly/yearly repeats.
+- **Projects, tags, and saved views** — group work and reuse filters instantly.
+- **Dependencies and subtasks** — block work, create child tasks, and inspect the tree.
 - **Three interfaces** — CLI, terminal Kanban TUI, and a web dashboard.
-- **Export** — JSON or Markdown for backups and sharing.
-- **Opt-in AI planning** — draft task plans and subtask breakdowns with local Ollama or OpenAI-compatible providers behind the `ai` build feature.
+- **Time tracking and reminders** — local timers, estimates, desktop notifications, and iCalendar export.
+- **Git-aware workflow** — branch mapping, commit/PR/issue links, TODO scanning, and optional commit trailers.
+- **Opt-in AI planning** — draft plans, breakdowns, triage, standups, reviews, and questions with local Ollama or OpenAI-compatible providers behind the `ai` build feature.
+- **Safe edits** — undo mutations and restore deleted tasks from trash.
 - **Cross-platform** — Linux, macOS, Windows, and Android (Termux), with ARM and x86 builds.
 - **Single binary** — no runtime dependencies; `tx self update` keeps it current.
 
@@ -128,26 +133,41 @@ cargo build --release
 install -Dm755 target/release/tasklynx ~/.local/bin/tasklynx
 ```
 
-Requires Rust 1.70 or newer.
+Requires Rust 1.75 or newer.
 
 ## Quick start
 
 ```bash
-tx init                                              # create the data store and config
-tx add "Implement authentication" \
-  --project api --tag backend,auth --priority high --due 2026-12-31
-tx add --template review                             # apply a task template
+tx init
+TASK_ID=$(tx add "Implement authentication" \
+  --project api --tag backend,auth --priority high --due 2026-12-31 \
+  --description "Password login, session cookies, and logout" --estimate 90)
 tx list                                              # tasks on the current branch
+tx next --explain                                    # ranking inputs for the next task
+tx start "$TASK_ID"                                  # start a local timer
+tx complete "$TASK_ID"
+tx agenda --days 14                                  # upcoming, overdue, and recurring work
 tx board                                             # terminal Kanban board
 tx web                                               # dashboard at http://127.0.0.1:8787
-tx doing <id>                                        # mark a task in progress
-tx start <id>                                        # start a local timer
-tx stop                                              # stop the timer
-tx time <id>                                         # estimate versus actual
-tx complete <id>                                     # mark a task done
-tx next                                              # best next task
 tx git status                                        # Git branch and task context
 ```
+
+`tx add` prints only the new task UUID, so it composes with shell variables. Every command also accepts any unique ID prefix.
+
+### Dependencies, subtasks, and recurrence
+
+```bash
+API_ID=$(tx add "Draft API schema" --project api --priority high)
+AUTH_ID=$(tx add "Implement authentication" --project api --priority high)
+tx block "$AUTH_ID" --by "$API_ID"
+
+PARENT_ID=$(tx add "Ship billing" --project api --due 2026-11-15 --repeat monthly --repeat-until 2027-11-15)
+tx subtask "$PARENT_ID" "Add invoice export"
+tx tree "$PARENT_ID"
+tx unblock "$AUTH_ID" --by "$API_ID"
+```
+
+`tx next` skips blocked tasks unless `--include-blocked` is passed. Completing a recurring task creates the next occurrence with its due date advanced.
 
 ### Branches
 
@@ -159,6 +179,23 @@ tx list --all              # tasks on every branch
 tx branch switch main
 tx branch delete feature-auth
 ```
+
+### Git-aware workflow
+
+```bash
+tx git status                         # repo, branch, HEAD, dirty state, recent commits
+tx git scan --apply --project backend # turn TODO/FIXME/HACK comments into tasks
+GIT_TASK=$(tx add "Wire authentication" --project api)
+tx git activate "$GIT_TASK"           # task used by the optional commit hook
+tx git hook install                   # review and install the prepare-commit-msg hook
+git commit -m "Wire authentication"
+tx git sync                           # link tasks from trailers or subject IDs
+tx git link "$GIT_TASK" --commit "$(git rev-parse --short HEAD)"
+tx git open "$GIT_TASK" --print       # commit, PR, or issue URL
+tx git deactivate
+```
+
+Git integration only reads local repository metadata. It never pushes, rewrites history, or contacts a remote.
 
 ### Templates, views, and bulk actions
 
@@ -202,7 +239,7 @@ tx export --format ics > tasklynx.ics
 | Command | Description |
 | --- | --- |
 | `tx init` | Initialize the data store and config |
-| `tx add <title>` | Add a task (`--project`, `--tag`, `--priority`, `--due`, `--estimate`, `--template`) |
+| `tx add <title>` | Add a task (`--project`, `--tag`, `--priority`, `--due`, `--estimate`, `--description`, `--repeat`, `--template`) |
 | `tx list` | List tasks (`--project`, `--tag`, `--status`, `--search`, `--all`, `--view`) |
 | `tx view <save\|list\|show\|run\|delete>` | Manage saved filters |
 | `tx doing <id>` | Mark a task in progress |
@@ -220,10 +257,10 @@ tx export --format ics > tasklynx.ics
 | `tx trash <list\|restore\|purge>` | Manage deleted tasks |
 | `tx block <id> --by <id>` | Add a task dependency |
 | `tx subtask <parent> <title>` | Create a subtask |
-| `tx tree` | Show subtask trees |
+| `tx tree [id]` | Show subtask trees (`--all` includes every branch) |
 | `tx search <query>` | Search titles, descriptions, and tags |
 | `tx today` | Show tasks due today or overdue |
-| `tx agenda` | Show upcoming, overdue, and recurring work |
+| `tx agenda --days 14` | Show upcoming, overdue, and recurring work |
 | `tx remind` | Show due and overdue work (`--days`, opt-in `--notify`) |
 | `tx stats` | Show task and branch totals |
 | `tx branch <list\|create\|switch\|delete>` | Manage branches |
@@ -235,10 +272,13 @@ tx export --format ics > tasklynx.ics
 | `tx ai ask <question>` | Ask a question about task context |
 | `tx ai doctor` | Check AI provider and model configuration |
 | `tx export --format <json\|md\|ics>` | Export tasks |
+| `tx import [path]` | Import JSON or Markdown (`--replace`, `--format`) |
 | `tx board` | Open the terminal Kanban board |
 | `tx web` | Start the web dashboard |
+| `tx completions <shell>` | Generate bash, zsh, fish, elvish, or PowerShell completions |
+| `tx man` | Render the roff manual page |
 | `tx config <init\|show>` | Manage configuration |
-| `tx self <update\|uninstall>` | Manage the installation |
+| `tx self <update\|uninstall>` | Manage the installation (`--purge` removes data/config) |
 
 Run `tx <command> --help` for the full flag list. See the [CLI reference](https://peekstore.github.io/tasklynx/cli/).
 
@@ -301,7 +341,11 @@ model = "llama3.1"
 endpoint = "http://127.0.0.1:11434"
 ```
 
-The `ollama` and `openai-compatible` providers require a feature-enabled build. For hosted OpenAI-compatible endpoints, set `TASKLYNX_AI_API_KEY` in the environment instead of writing keys to `config.toml`. Use `tx ai doctor` to verify reachability and model availability.
+The `ollama` and `openai-compatible` providers require a feature-enabled build. Official release binaries are built without the `ai` feature, so installers and package-manager releases support offline triage but not provider-backed AI. For hosted OpenAI-compatible endpoints, set `TASKLYNX_AI_API_KEY` in the environment instead of writing keys to `config.toml`. Use `tx ai doctor` to verify reachability and model availability.
+
+```bash
+cargo install --git https://github.com/peekstore/tasklynx.git --locked --features ai
+```
 
 Google Gemini through AI Studio works through the OpenAI-compatible provider:
 
@@ -320,9 +364,11 @@ tx ai plan "Ship the billing API" --apply
 tx ai breakdown <id>
 tx ai breakdown <id> --apply
 tx ai triage
-tx ai standup --days 1
-tx ai review feature-auth
+tx ai triage --offline --include-blocked
+tx ai standup --days 1 --project api
+tx ai review feature-auth --days 14
 tx ai ask "What should I do next?"
+tx ai ask "What changed this week?" --branch main --project api
 ```
 
 Triage falls back to deterministic `tx next` ranking when no provider is configured. The web dashboard has an AI copilot panel with preview and apply controls, and the terminal board exposes triage and breakdown previews in its detail pane. Use `TASKLYNX_AI_LOG=1` to log prompt sizes and latency without logging prompt contents.

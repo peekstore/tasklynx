@@ -2,7 +2,7 @@
 
 ## Prerequisites
 
-- [Rust](https://rustup.rs/) 1.70 or newer (stable).
+- [Rust](https://rustup.rs/) 1.75 or newer (stable).
 - Git.
 - `clippy` and `rustfmt` (`rustup component add clippy rustfmt`).
 - Optional: Android NDK r25c for Android cross-builds.
@@ -42,16 +42,21 @@ cargo test --all-targets --features ai
 
 ```
 src/
-├── main.rs    # CLI parsing and command dispatch
-├── model.rs   # Task, ProjectData, AppConfig, dates
-├── store.rs   # JSON persistence and export
-├── tui.rs     # Ratatui terminal board
-├── web.rs     # Axum server and REST API
-├── ai.rs      # Optional AI providers and prompt handling
-└── config.rs  # Config load/save
-assets/        # Embedded web UI and icons
-docs/          # MkDocs documentation
-Screenshots/   # README and docs images
+├── main.rs       # CLI parsing and command dispatch
+├── model.rs      # Task, ProjectData, AppConfig, dates, recurrence
+├── store.rs      # JSON persistence, import/export, undo
+├── config.rs     # Config load/save and path resolution
+├── templates.rs  # Built-in task templates
+├── duplicates.rs # Title similarity and duplicate detection
+├── reminders.rs  # Due work, notifications, and iCalendar export
+├── git.rs        # Repository discovery, branch mapping, scan helpers
+├── tui.rs        # Ratatui terminal board
+├── web.rs        # Axum server, REST API, embedded UI
+└── ai.rs         # Optional AI providers and prompt handling
+assets/           # Embedded web UI and icons
+docs/             # MkDocs documentation
+Screenshots/      # README and docs images
+tests/            # CLI integration tests
 ```
 
 ## Android builds
@@ -92,18 +97,27 @@ Update the relevant page in [`docs/`](https://github.com/peekstore/tasklynx/tree
 
 ## Release process
 
-Releases are automated by GitHub Actions.
+Release builds are automated by GitHub Actions, but version bumps and tags are explicit. The old auto-version workflow has been removed.
 
-1. Update the version in `Cargo.toml`, `Cargo.lock`, `.version`, the README, and the docs.
-2. Add a `CHANGELOG.md` entry.
-3. Commit, then create and push an annotated tag:
+1. Synchronize every manifest and documentation example:
 
 ```bash
+./tools/sync_version.sh v0.0.1-b4
+```
+
+2. Add the matching `CHANGELOG.md` section and update `CITATION.cff`'s `date-released` if needed.
+3. Run the quality gates above, then `cargo build --release --locked` and `mkdocs build --strict`.
+4. Commit, then create and push an annotated tag:
+
+```bash
+git add -A
+git commit -m "chore(release): bump version to v0.0.1-b4"
 git tag -a v0.0.1-b4 -m "Tasklynx v0.0.1-b4"
+git push origin main
 git push origin v0.0.1-b4
 ```
 
-The release workflow builds every target, publishes the assets, and generates checksums. Installer tests run afterward against the published release.
+The release workflow (`Auto Build & Release`) builds every target, publishes the assets, and generates checksums. `Package & Distribute` publishes package artifacts on the tag, and `Installer Test All` runs after the release completes against the newest published release.
 
 ## Getting help
 

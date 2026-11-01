@@ -13,6 +13,7 @@ Tasklynx is a small synchronous CLI with two optional front ends. This page desc
 | `src/config.rs` | Config load/save and path resolution |
 | `src/templates.rs` | Built-in task templates for `tx add --template` |
 | `src/duplicates.rs` | Normalized title similarity and duplicate detection |
+| `src/git.rs` | Repository discovery, branch mapping, commit scanning, and hooks |
 | `src/ai.rs` | Provider abstraction, prompt building, response validation, redaction |
 | `src/tui.rs` | Ratatui terminal Kanban board |
 | `src/web.rs` | Axum server, REST endpoints, embedded assets |
@@ -27,8 +28,10 @@ graph LR
   CLI --> TUI[tui.rs]
   CLI --> Web[web.rs]
   CLI --> Config[config.rs]
+  CLI --> Git[git.rs]
   CLI --> AI[ai.rs]
   CLI --> Reminders[reminders.rs]
+  Git -. local metadata .-> Repo[(Git repository)]
   Store --> JSON[(tasks.json)]
   Config --> TOML[(config.toml)]
   AI -. optional feature .-> Provider[(Ollama / OpenAI-compatible)]
@@ -49,7 +52,7 @@ graph LR
 }
 ```
 
-Each `Task` carries an ID, title, description, status (`todo`/`doing`/`done`), priority (`low`/`normal`/`high`/`urgent`), project, branch, tags, optional due date, optional estimate, local time entries, and timestamps. A time entry with no end timestamp is the active timer.
+Each `Task` carries an ID, title, description, status (`todo`/`doing`/`done`), priority (`low`/`normal`/`high`/`urgent`), project, branch, tags, optional due date, optional estimate, local time entries, timestamps, recurrence settings, blocker and subtask links, Git source metadata, and optional commit/PR/issue URLs. A time entry with no end timestamp is the active timer.
 
 Serde deserialization uses defaults for missing fields, so older stores keep loading as the schema grows. `version` exists to support future migrations.
 
@@ -74,8 +77,8 @@ Config is separate from data:
 
 - `src/ai.rs` defines a small `Provider` trait and an offline `none` provider.
 - `ollama` and `openai-compatible` HTTP providers are compiled only with the `ai` Cargo feature.
-- Default builds make no AI network calls and have no HTTP client dependency.
-- Prompt context is limited to open tasks on the current branch, capped by `ai.max_context_tasks`.
+- Default builds, including official release binaries, make no AI network calls and have no HTTP client dependency. Provider-backed AI requires a source build with `--features ai`.
+- Prompt context defaults to open tasks on the current branch, can be narrowed with `--project` or `--branch`, and is capped by `ai.max_context_tasks`.
 - Common secrets are redacted when `ai.redact` is enabled.
 - AI responses are parsed into a strict JSON schema and validated before any task is created.
 - `tx ai plan` and `tx ai breakdown` preview by default; `--apply` is required to persist tasks.

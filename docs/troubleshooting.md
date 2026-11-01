@@ -92,7 +92,22 @@ cargo clean
 cargo build --release
 ```
 
-Check that you are on Rust 1.70 or newer with `rustc --version`. For Android cross-builds, confirm the NDK path used by `build-android-termux.sh`.
+Check that you are on Rust 1.75 or newer with `rustc --version`. For Android cross-builds, confirm the NDK path used by `build-android-termux.sh`.
+
+## `tx ai` says provider support is unavailable
+
+The official release binaries are built without the `ai` feature. Offline triage still works, but Ollama and OpenAI-compatible providers require a source build:
+
+```bash
+cargo install --git https://github.com/peekstore/tasklynx.git --locked --features ai
+```
+
+## `tx ai doctor` cannot reach the provider
+
+- Confirm `ai.endpoint` is correct: `http://127.0.0.1:11434` for Ollama or an OpenAI-compatible URL that includes the API version, such as `https://api.openai.com/v1`.
+- Ollama must be running and the configured model must be pulled: `ollama list`.
+- OpenAI-compatible endpoints check `<endpoint>/models`; confirm the endpoint and `TASKLYNX_AI_API_KEY` are correct.
+- Run `tx ai doctor` again after changing `config.toml`.
 
 ## CI installer test failed on a push
 

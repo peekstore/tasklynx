@@ -36,13 +36,17 @@ Everything is written atomically to disk, so a crash can't leave a half-written 
 
 ## Features
 
-- **Local-first** — tasks live on your machine; nothing is sent anywhere.
+- **Local-first** — tasks live on your machine; nothing is sent unless you opt into an AI provider.
 - **Git-style branches** — keep work for different features or releases separate.
 - **Short IDs** — any unique prefix of a task UUID works in commands.
-- **Priorities and due dates** — `low`, `normal`, `high`, `urgent`, with overdue detection.
-- **Projects and tags** — group work and filter instantly.
+- **Priorities, due dates, and recurrence** — `low`, `normal`, `high`, `urgent`, with overdue detection and daily/weekly/monthly/yearly repeats.
+- **Projects and tags** — group work and filter instantly, with saved views.
+- **Dependencies and subtasks** — block work on prerequisites and organize parent/child tasks.
+- **Time tracking and reminders** — start/stop timers, estimate effort, and surface due work.
+- **Git-aware workflow** — branch mapping, commit/PR/issue links, TODO scanning, and opt-in trailers.
+- **Optional AI** — plan, breakdown, triage, standup, review, and ask with previews before writes.
 - **Three interfaces** — CLI, terminal Kanban TUI, and a web dashboard.
-- **Export** — JSON or Markdown for backups and sharing.
+- **Export** — JSON, Markdown, or iCalendar for backups, sharing, and calendars.
 - **Cross-platform** — Linux, macOS, Windows, and Android (Termux), with ARM and x86 builds.
 - **Single binary** — no runtime dependencies; `tx self update` keeps it current.
 
@@ -97,12 +101,6 @@ curl -fsSL https://raw.githubusercontent.com/peekstore/tasklynx/main/installer.s
 
 The installer detects your CPU ABI (`arm64-v8a`, `armeabi-v7a`, or `x86_64`) and downloads the matching build. To cross-compile from a desktop, use [`build-android-termux.sh`](build-android-termux.sh).
 
-### Nix
-
-```bash
-nix run github:peekstore/tasklynx -- --version
-```
-
 ### Manual download
 
 Download the binary for your platform from [Releases](https://github.com/peekstore/tasklynx/releases) and put it on your `PATH`.
@@ -116,20 +114,25 @@ cargo build --release
 install -Dm755 target/release/tasklynx ~/.local/bin/tasklynx
 ```
 
-Requires Rust 1.70 or newer.
+Requires Rust 1.75 or newer.
 
 ## Quick start
 
 ```bash
-tx init                                              # create the data store and config
-tx add "Implement authentication" \
-  --project api --tag backend,auth --priority high --due 2026-12-31
+tx init
+TASK_ID=$(tx add "Implement authentication" \
+  --project api --tag backend,auth --priority high --due 2026-12-31 \
+  --description "Password login, session cookies, and logout" --estimate 90)
 tx list                                              # tasks on the current branch
+tx next --explain                                    # ranking inputs for the next task
+tx start "$TASK_ID"                                  # start a local timer
+tx complete "$TASK_ID"
+tx agenda --days 14                                  # upcoming, overdue, and recurring work
 tx board                                             # terminal Kanban board
 tx web                                               # dashboard at http://127.0.0.1:8787
-tx doing <id>                                        # mark a task in progress
-tx complete <id>                                     # mark a task done
 ```
+
+`tx add` prints only the new task UUID, so it composes with shell variables. Every command also accepts any unique ID prefix.
 
 ### Branches
 
@@ -142,14 +145,24 @@ tx branch switch main
 tx branch delete feature-auth
 ```
 
-### Search, export, and stats
+### Search, export, recurrence, and Git
 
 ```bash
 tx search auth
 tx today
+tx agenda --days 14
 tx stats
 tx export --format json > tasks.json
 tx export --format md > TASKS.md
+tx export --format ics > tasks.ics
+
+API_ID=$(tx add "Draft API schema" --project api)
+tx block "$TASK_ID" --by "$API_ID"
+tx subtask "$TASK_ID" "Add login form"
+tx tree "$TASK_ID"
+tx add "Weekly review" --due 2026-11-06 --repeat weekly
+tx git status
+tx git scan --apply --project backend
 ```
 
 ## CLI at a glance
@@ -157,23 +170,29 @@ tx export --format md > TASKS.md
 | Command | Description |
 | --- | --- |
 | `tx init` | Initialize the data store and config |
-| `tx add <title>` | Add a task (`--project`, `--tag`, `--priority`, `--due`) |
+| `tx add <title>` | Add a task (`--project`, `--tag`, `--priority`, `--due`, `--repeat`) |
 | `tx list` | List tasks (`--project`, `--tag`, `--status`, `--search`, `--all`) |
+| `tx next` | Show the best next task (`--explain`, `--include-blocked`) |
 | `tx doing <id>` | Mark a task in progress |
-| `tx complete <id>` | Mark a task done |
+| `tx complete <id>` | Mark a task done (`--force`, `--commit`) |
 | `tx reopen <id>` | Reopen a completed task |
-| `tx edit <id>` | Edit title, description, priority, project, due date, or tags |
+| `tx edit <id>` | Edit fields, tags, commit, or recurrence |
 | `tx duplicate <id>` | Duplicate a task |
-| `tx delete <id>` | Delete a task |
+| `tx delete <id>` | Move a task to trash (`--permanent`) |
+| `tx subtask <parent> <title>` | Create a subtask |
+| `tx tree [id]` | Show subtask trees (`--all` includes every branch) |
 | `tx search <query>` | Search titles, descriptions, and tags |
 | `tx today` | Show tasks due today or overdue |
+| `tx agenda --days 14` | Show upcoming, overdue, and recurring work |
 | `tx stats` | Show task and branch totals |
 | `tx branch <list\|create\|switch\|delete>` | Manage branches |
-| `tx export --format <json\|md>` | Export tasks |
+| `tx git <status\|link\|sync\|scan>` | Git context, links, sync, and TODO scanning |
+| `tx export --format <json\|md\|ics>` | Export tasks |
+| `tx import [path]` | Import JSON or Markdown (`--replace`, `--format`) |
 | `tx board` | Open the terminal Kanban board |
 | `tx web` | Start the web dashboard |
 | `tx config <init\|show>` | Manage configuration |
-| `tx self <update\|uninstall>` | Manage the installation |
+| `tx self <update\|uninstall>` | Manage the installation (`--purge`) |
 
 Run `tx <command> --help` for the full flag list. See the [CLI reference](https://peekstore.github.io/tasklynx/cli/).
 
@@ -204,7 +223,23 @@ foreground = "#f5f5f5"
 muted = "#8f949e"
 font_family = "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace"
 default_project = "default"
+
+[git]
+auto_branch = true
+branch_prefix = "tx/"
+link_commits = true
+hooks = false
+
+[ai]
+provider = "none"
+model = "llama3.1"
+endpoint = "http://127.0.0.1:11434"
+max_context_tasks = 50
+include_descriptions = true
+redact = true
 ```
+
+Saved views are managed by `tx list --save` and `tx view save`. AI providers require a source build with `--features ai`; official release binaries omit provider support.
 
 ### Data storage
 

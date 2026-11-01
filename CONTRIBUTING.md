@@ -17,7 +17,7 @@ By participating, you agree to follow our [Code of Conduct](CODE_OF_CONDUCT.md).
 
 ### Prerequisites
 
-- [Rust](https://rustup.rs/) 1.70 or newer (stable toolchain).
+- [Rust](https://rustup.rs/) 1.75 or newer (stable toolchain).
 - Git.
 - `clippy` and `rustfmt` components (`rustup component add clippy rustfmt`).
 - For Android cross-builds: Android NDK r25c and the targets listed in [`build-android-termux.sh`](build-android-termux.sh).

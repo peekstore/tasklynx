@@ -46,13 +46,13 @@ Running `tx` with no subcommand opens the terminal board.
 | `tx block <id> --by <blocker>` | Mark a task as blocked by another |
 | `tx unblock <id> [--by <blocker>]` | Remove one or all blockers |
 | `tx subtask <parent> <title>` | Create a subtask under a parent |
-| `tx tree [id]` | Show parent/child task trees |
+| `tx tree [id] [--all]` | Show parent/child task trees |
 | `tx stats` | Show task and branch totals |
 | `tx branch` | Manage branches |
 | `tx git status` | Show Git and Tasklynx branch context |
 | `tx git link <id>` | Link a task to a commit, PR, or issue |
-| `tx git sync` | Link tasks from commit trailers |
-| `tx git scan` | Find TODO/FIXME comments in tracked files |
+| `tx git sync [--limit N]` | Link tasks from commit trailers or subject IDs |
+| `tx git scan` | Find TODO/FIXME/HACK comments in tracked files |
 | `tx git open <id>` | Open a task commit, PR, or issue in the browser |
 | `tx git hook` | Install or remove the Tasklynx Git hook |
 | `tx git activate <id>` | Mark a task active for commit trailers |
@@ -65,11 +65,14 @@ Running `tx` with no subcommand opens the terminal board.
 | `tx ai ask <question>` | Ask a grounded question about task context |
 | `tx ai doctor` | Check AI provider and model configuration |
 | `tx export` | Export tasks as JSON, Markdown, or iCalendar |
+| `tx import [path]` | Import JSON or Markdown (`--format`, `--replace`) |
 | `tx web` | Start the web dashboard |
 | `tx board` | Open the terminal Kanban board |
+| `tx completions <shell>` | Generate shell completions |
+| `tx man` | Render the roff manual page |
 | `tx config` | Manage configuration |
 | `tx self update` | Update to the latest release |
-| `tx self uninstall` | Remove the installation |
+| `tx self uninstall [--purge]` | Remove the installation, optionally with data/config |
 
 ## Task IDs
 
@@ -97,10 +100,21 @@ tx add "Task title" \
 | `--tag <tags>` | `-t` | none | Comma-separated list |
 | `--priority <level>` | `-P` | `normal` | `low`, `normal`, `high`, `urgent` |
 | `--due <YYYY-MM-DD>` | — | none | Due at 23:59:59 local time |
+| `--description <text>` | `-d` | none | Full task description |
 | `--estimate <minutes>` | — | none | Estimated effort in minutes |
+| `--commit <sha>` | — | none | Link a Git commit when the task is created |
+| `--repeat <kind>` | — | none | `daily`, `weekly`, `monthly`, `yearly`, or `none` |
+| `--repeat-until <YYYY-MM-DD>` | — | none | Stop creating occurrences after this date |
 | `--template <name>` | — | none | Apply a built-in task template |
 
-`tx add` prints the full task UUID.
+`tx add` prints only the full task UUID, which makes it easy to capture in a shell variable:
+
+```bash
+TASK_ID=$(tx add "Write migration" --priority high --estimate 90)
+tx start "$TASK_ID"
+```
+
+`--repeat-until` requires `--repeat`. Completing a recurring task creates the next occurrence with the due date advanced; reopening a completed occurrence does not generate duplicates.
 
 ### Templates
 
@@ -111,6 +125,17 @@ tx add --template bug --priority low
 ```
 
 Available templates are `review`, `bug`, `feature`, `test`, and `chore`. A template supplies a default title, priority, tags, description, and estimate. Explicit flags override template values, and explicit `--tag` values are merged with template tags. `--template review` can be used without a title; otherwise a title is required.
+
+### Recurring tasks
+
+```bash
+tx add "Weekly review" --due 2026-11-06 --repeat weekly
+tx add "Pay invoices" --due 2026-12-01 --repeat monthly --repeat-until 2027-12-01
+tx edit <id> --repeat daily --repeat-until 2026-11-30
+tx edit <id> --repeat none
+```
+
+`tx list` and `tx tree` mark recurring tasks with a `↻` indicator and the repeat interval.
 
 ## Listing and filtering
 
@@ -166,11 +191,13 @@ tx edit <id> --priority high
 tx edit <id> --project backend
 tx edit <id> --due 2026-12-31
 tx edit <id> --estimate 90
+tx edit <id> --commit <sha>
+tx edit <id> --repeat weekly --repeat-until 2026-12-31
 tx edit <id> --add-tag urgent
 tx edit <id> --remove-tag stale
 ```
 
-`--add-tag` and `--remove-tag` can be repeated or passed comma-separated for `--add-tag`.
+`--add-tag` and `--remove-tag` can be repeated or passed comma-separated for `--add-tag`. Setting `--repeat none` clears the repeat interval and `--repeat-until`.
 
 ## Status changes
 
@@ -207,16 +234,19 @@ tx time <id>
 
 `tx time` lists tasks with tracked sessions and their estimate versus actual time. `tx time <id>` shows the estimate, actual total, and each session's start/end timestamps. Running sessions are marked `active` and count toward the total. Estimates and sessions stay local in `tasks.json`.
 
-## Searching, today, and stats
+## Searching, today, agenda, and stats
 
 ```bash
 tx search auth
 tx today
+tx agenda
+tx agenda --days 14
 tx stats
 ```
 
 - `search` matches title, description, and tags (case-insensitive).
 - `today` prints `OVERDUE` or `TODAY` followed by the short ID and title.
+- `agenda` prints upcoming work, including recurring tasks, within the next N days (default 7).
 - `stats` prints `tasks=… done=… open=… overdue=… branches=… projects=…`.
 
 ## Duplicate detection
@@ -265,9 +295,10 @@ tx unblock <id>
 tx subtask <parent-id> "Write migration"
 tx tree
 tx tree <parent-id>
+tx tree --all
 ```
 
-A task is blocked while any task in `blocked_by` is still open. Completing a parent with open subtasks requires `--force`:
+A task is blocked while any task in `blocked_by` is still open. `tx tree` defaults to the current branch; pass `--all` to include every branch. Completing a parent with open subtasks requires `--force`:
 
 ```bash
 tx complete <parent-id> --force
@@ -313,7 +344,7 @@ tx git scan --apply
 tx git scan --apply --project backend --limit 50
 ```
 
-`tx git scan` searches tracked files for `TODO`, `FIXME`, and `HACK` comments. Preview mode prints file paths and line numbers without changing the store. `--apply` creates tasks with the source path, line number, Git commit, and branch attached. Already-scanned locations are skipped, so rerunning the command is safe. Vendored and generated directories such as `vendor/`, `node_modules/`, `target/`, `build/`, and `dist/` are skipped.
+`tx git scan` searches tracked files for `TODO`, `FIXME`, and `HACK` comments. Preview mode prints file paths and line numbers without changing the store. `--apply` creates tasks with the source path, line number, Git commit, and branch attached. `--project` sets the destination project and `--limit` caps results (default 100). Already-scanned locations are skipped, so rerunning the command is safe. Vendored and generated directories such as `vendor/`, `node_modules/`, `target/`, `build/`, and `dist/` are skipped.
 
 ### Commit trailers and hooks
 
@@ -322,14 +353,15 @@ tx git activate <id>
 tx git hook install
 git commit -m "Implement authentication"
 tx git sync
-git commit -m "More work"
+git commit -m "More work <short-id>"
+tx git sync --limit 25
 tx git deactivate
 tx git hook uninstall
 ```
 
 - `tx git activate` stores the task ID in the repository's local Git config.
 - `tx git hook install` installs an opt-in `prepare-commit-msg` hook that appends a `Tasklynx-Id: <uuid>` trailer when a task is active. The hook script is printed for review.
-- `tx git sync` scans recent commits for that trailer or a task ID in the commit subject and links matching tasks to the commit.
+- `tx git sync` scans recent commits for that trailer or a unique task ID prefix in the commit subject and links matching tasks to the commit. `--limit` controls how many commits are inspected (default 100).
 - `tx git deactivate` clears the active task.
 - `tx git hook uninstall` removes only a hook installed by Tasklynx.
 
@@ -349,10 +381,10 @@ include_descriptions = true
 redact = true
 ```
 
-To use Ollama or an OpenAI-compatible endpoint, build with the `ai` feature and select a provider:
+Official release binaries are built without the `ai` feature. Offline commands still work, but provider-backed AI requires a source build:
 
 ```bash
-cargo build --features ai
+cargo install --git https://github.com/peekstore/tasklynx.git --locked --features ai
 tx ai doctor
 ```
 
@@ -406,17 +438,18 @@ tx ai triage
 tx ai triage --limit 3 --project api
 tx ai triage --include-blocked
 tx ai triage --offline
-tx ai standup --days 1
+tx ai standup --days 1 --project api
 tx ai review feature-auth --days 14
 tx ai ask "What is blocking the release?"
+tx ai ask "What changed this week?" --branch main --project api
 ```
 
 - `tx ai triage` ranks open work. With no provider configured, or with `--offline`, it uses the same deterministic ordering as `tx next`.
 - `--include-blocked` lets triage consider blocked tasks and explains what blocks them.
 - `tx ai standup` summarizes recent completed work plus current open and blocked work.
 - `tx ai review [branch]` summarizes a branch, defaulting to the current branch.
-- `tx ai ask "<question>"` answers from the selected open-task context and says when the answer is not present.
-- `--days`, `--project`, `--limit`, and `--no-description` control context and output size.
+- `tx ai ask "<question>"` answers from the selected open-task context and says when the answer is not present. Use `--branch` to ask about a branch other than the current one.
+- `--days`, `--project`, `--branch`, `--limit`, and `--no-description` control context and output size. Defaults are 1 day for standup, 30 days for review, 5 triage picks, 10 plan/breakdown/report items, and 50 context tasks for ask.
 - AI commands print the selected provider and model to stderr.
 - `TASKLYNX_AI_LOG=1` logs prompt/response byte sizes and provider latency to stderr; prompt contents are never logged.
 
@@ -428,7 +461,7 @@ AI output is treated as untrusted: titles, priorities, dates, tags, dependency i
 tx ai doctor
 ```
 
-Prints the configured provider, endpoint, and model, then checks connectivity. Ollama checks installed models via `/api/tags`; OpenAI-compatible providers check `/v1/models`. The command does not send task data.
+Prints the configured provider, endpoint, and model, then checks connectivity. Ollama checks installed models via `/api/tags`; OpenAI-compatible providers check `<endpoint>/models`. The command does not send task data.
 
 ## Branches
 
@@ -457,11 +490,13 @@ tx export > tasks.json
 ```bash
 tx import backup.json
 tx import tasks.md
+tx import --format md tasks.md
 tx import --replace backup.json
 cat tasks.json | tx import
 ```
 
 - Supports JSON (either a full `ProjectData` export or an array of `Task` objects) and Markdown checklists.
+- `--format` defaults to `json`; Markdown content is also auto-detected when it starts with `#`.
 - Merges with existing tasks by default (updating matching IDs and appending new ones).
 - Pass `--replace` to overwrite all existing tasks.
 
@@ -546,9 +581,10 @@ tx config show
 ```bash
 tx self update
 tx self uninstall
+tx self uninstall --purge
 ```
 
-`update` re-runs the official installer. `uninstall` removes the binary and the `tx` alias.
+`update` re-runs the official installer. `uninstall` removes the binary and the `tx` alias while preserving data and config. `--purge` also removes the task store and `config.toml`.
 
 ## Exit codes
 

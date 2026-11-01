@@ -6,9 +6,11 @@ AI is opt-in. The default build has no networking dependency and the default pro
 
 ```bash
 cargo build --features ai
+# or install the feature-enabled build:
+cargo install --git https://github.com/peekstore/tasklynx.git --locked --features ai
 ```
 
-The `ollama` and `openai-compatible` providers are compiled only with the `ai` feature. Core task management and offline triage work without it.
+The `ollama` and `openai-compatible` providers are compiled only with the `ai` feature. Official release binaries are built without it, so installers and package-manager releases support offline triage but not provider-backed AI. Core task management and offline triage work without the feature.
 
 ## Configure a provider
 
@@ -82,20 +84,22 @@ tx ai doctor
 
 ```bash
 tx ai plan "Ship the billing API"
-tx ai plan "Ship the billing API" --apply
+tx ai plan "Ship the billing API" --project api --limit 8 --apply
 
 tx ai breakdown <id>
 tx ai breakdown <id> --apply
 
 tx ai triage
-tx ai standup --days 1
-tx ai review feature-auth
+tx ai triage --offline --include-blocked
+tx ai standup --days 1 --project api
+tx ai review feature-auth --days 14
 tx ai ask "What should I do next?"
+tx ai ask "What changed this week?" --branch main --project api
 ```
 
 - Mutating commands preview by default and require `--apply`.
-- `tx ai triage` falls back to deterministic `tx next` ranking when no provider is configured.
-- `--limit N` and `--no-description` tighten context.
+- `tx ai triage` falls back to deterministic `tx next` ranking when no provider is configured or `--offline` is passed.
+- `--limit N`, `--project`, `--branch`, and `--no-description` tighten context.
 - CLI, TUI, and web expose the same preview and apply behavior.
 
 ## Privacy and safety

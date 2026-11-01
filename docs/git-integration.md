@@ -62,18 +62,20 @@ tx git activate <id>
 tx git hook install
 git commit -m "Implement authentication"
 tx git sync
+tx git sync --limit 25
+git commit -m "More work <short-id>"
 tx git deactivate
 tx git hook uninstall
 ```
 
 The `prepare-commit-msg` hook appends a `Tasklynx-Id` trailer while a task is active. `tx git hook install` prints the script for review, and reinstalling refreshes only a hook managed by Tasklynx. Tasklynx refuses to overwrite or remove unrelated hooks.
 
-`tx git sync` scans recent commits and links tasks by:
+`tx git sync` scans the most recent 100 commits by default and links tasks by:
 
 - A `Tasklynx-Id: <id>` trailer.
 - A full task UUID or unique ID prefix in the commit subject.
 
-Sync accepts full IDs and short prefixes. It does not rewrite commits.
+Pass `--limit N` to change the scan window. Sync accepts full IDs and short prefixes. It does not rewrite commits.
 
 ## Scanning code comments
 

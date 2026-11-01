@@ -1,6 +1,6 @@
 # Configuration
 
-Tasklynx reads a single TOML file for the web server and theme.
+Tasklynx reads a single TOML file for the web server, theme, saved views, Git mapping, and AI providers.
 
 ## Config file location
 
@@ -126,7 +126,9 @@ model = "gemini-2.5-flash"
 endpoint = "https://generativelanguage.googleapis.com/v1beta/openai"
 ```
 
-The endpoint must include the API version path, such as `/v1` or `/v1beta/openai`. For hosted endpoints, put the key in `TASKLYNX_AI_API_KEY`; it is never stored in `config.toml`. Run `tx ai doctor` to check provider reachability and model availability. AI commands build prompt context from the current branch only and require `--apply` before creating tasks. Offline triage uses the deterministic `tx next` ranking. Set `TASKLYNX_AI_LOG=1` to log prompt/response sizes and provider latency without logging prompt contents.
+The endpoint must include the API version path, such as `/v1` or `/v1beta/openai`. For hosted endpoints, put the key in `TASKLYNX_AI_API_KEY`; it is never stored in `config.toml`. Run `tx ai doctor` to check provider reachability and model availability. AI commands default to the current branch; use `--project` or `--branch` to narrow context further. Plans and breakdowns require `--apply` before creating tasks. Offline triage uses the deterministic `tx next` ranking. Set `TASKLYNX_AI_LOG=1` to log prompt/response sizes and provider latency without logging prompt contents.
+
+Official release binaries are built without the `ai` feature. Rebuild from source with `cargo install --git https://github.com/peekstore/tasklynx.git --locked --features ai` to enable Ollama or OpenAI-compatible providers.
 
 Command-line flags override the file for that run:
 
