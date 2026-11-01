@@ -208,7 +208,7 @@ tx export --format ics > tasklynx.ics
 | `tx doing <id>` | Mark a task in progress |
 | `tx start <id>` / `tx stop` | Track time locally |
 | `tx time [id]` | Show tracked time versus estimates |
-| `tx complete <id>` | Mark a task done |
+| `tx complete <id>` | Mark a task done (`--commit <sha>` links a commit) |
 | `tx complete --done-before <date>` | Bulk-complete due work |
 | `tx reopen <id>` | Reopen a completed task |
 | `tx next` | Show the best next task to work on |
@@ -269,6 +269,12 @@ foreground = "#f5f5f5"
 muted = "#8f949e"
 font_family = "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace"
 default_project = "default"
+
+[git]
+auto_branch = true
+branch_prefix = "tx/"
+link_commits = true
+hooks = false
 
 [ai]
 provider = "none"

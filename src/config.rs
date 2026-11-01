@@ -90,7 +90,20 @@ mod tests {
         assert_eq!(c.port, 9999);
         assert_eq!(c.host, AppConfig::default().host);
         assert!(c.views.is_empty());
+        assert!(c.git.auto_branch);
+        assert_eq!(c.git.branch_prefix, "tx/");
+        assert!(c.git.link_commits);
+        assert!(!c.git.hooks);
         assert_eq!(c.ai.provider, "none");
+    }
+
+    #[test]
+    fn partial_git_config_uses_defaults() {
+        let c: AppConfig = toml::from_str("[git]\nlink_commits = false\n").unwrap();
+        assert!(c.git.auto_branch);
+        assert_eq!(c.git.branch_prefix, "tx/");
+        assert!(!c.git.link_commits);
+        assert!(!c.git.hooks);
     }
 
     #[test]

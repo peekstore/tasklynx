@@ -42,6 +42,25 @@ impl GitInfo {
     }
 }
 
+pub fn task_branch(git_branch: &str, prefix: &str) -> Option<String> {
+    let branch = git_branch.trim();
+    if branch.is_empty() || branch == "HEAD" {
+        return None;
+    }
+    let prefix = prefix.trim();
+    let mapped = if prefix.is_empty() {
+        branch
+    } else {
+        branch.strip_prefix(prefix).unwrap_or(branch)
+    };
+    let mapped = mapped.trim();
+    if mapped.is_empty() {
+        None
+    } else {
+        Some(mapped.to_string())
+    }
+}
+
 fn git_output(args: &[&str]) -> Option<String> {
     let output = Command::new("git").args(args).output().ok()?;
     if !output.status.success() {
@@ -171,6 +190,21 @@ mod tests {
             remote_web_url("ssh://git@github.com/peekstore/tasklynx.git").as_deref(),
             Some("https://github.com/peekstore/tasklynx")
         );
+    }
+
+    #[test]
+    fn maps_git_branches_to_task_branches() {
+        assert_eq!(
+            task_branch("tx/feature-auth", "tx/").as_deref(),
+            Some("feature-auth")
+        );
+        assert_eq!(
+            task_branch("feature/auth", "tx/").as_deref(),
+            Some("feature/auth")
+        );
+        assert_eq!(task_branch("main", "tx/").as_deref(), Some("main"));
+        assert!(task_branch("HEAD", "tx/").is_none());
+        assert!(task_branch("tx/", "tx/").is_none());
     }
 
     #[test]

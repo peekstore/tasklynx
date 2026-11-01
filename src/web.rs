@@ -107,6 +107,7 @@ fn merge_task(existing: &mut Task, incoming: Task) -> (Task, Option<Task>) {
     existing.git_branch = incoming.git_branch;
     existing.git_remote = incoming.git_remote;
     existing.git_pr_url = incoming.git_pr_url;
+    existing.git_issue_url = incoming.git_issue_url;
     existing.source_path = incoming.source_path;
     existing.source_line = incoming.source_line;
     existing.parent = incoming.parent;

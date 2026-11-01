@@ -22,7 +22,8 @@ impl TestEnv {
 
     fn command(&self) -> Command {
         let mut cmd = Command::new(env!("CARGO_BIN_EXE_tasklynx"));
-        cmd.env("HOME", &self.root)
+        cmd.current_dir(&self.root)
+            .env("HOME", &self.root)
             .env("XDG_CONFIG_HOME", self.root.join("config"))
             .env("TASKLYNX_HOME", self.root.join("data"))
             .env_remove("TERMUX_VERSION");
@@ -932,6 +933,75 @@ fn git_status_and_commit_link() {
     assert!(outside.contains("not in a git repository"), "{outside}");
 }
 
+#[test]
+fn git_add_maps_and_switches_branch() {
+    if !git_available() {
+        return;
+    }
+
+    let env = TestEnv::new("git-auto-branch");
+    env.ok(&["init"]);
+    let repo = env.root.join("auto-branch-repo");
+    init_git_repo(&repo);
+    git_ok(&repo, &["checkout", "-qb", "tx/auth"]);
+    git_ok(
+        &repo,
+        &["remote", "add", "origin", "git@github.com:owner/repo.git"],
+    );
+    let config_dir = env.root.join("config").join("peekstore").join("tasklynx");
+    std::fs::create_dir_all(&config_dir).unwrap();
+    std::fs::write(
+        config_dir.join("config.toml"),
+        "[git]\nauto_branch = true\nbranch_prefix = \"tx/\"\nlink_commits = true\n",
+    )
+    .unwrap();
+
+    let id = env
+        .ok_in(&repo, &["add", "Feature branch task"])
+        .trim()
+        .to_string();
+    assert_eq!(id.len(), 36);
+
+    let branches = env.ok(&["branch", "list"]);
+    assert!(branches.contains("* auth"), "{branches}");
+    assert!(env.ok(&["list"]).contains("Feature branch task"));
+
+    let json = env.ok(&["export", "--format", "json"]);
+    assert!(json.contains("\"branch\": \"auth\""), "{json}");
+    assert!(json.contains("\"git_branch\": \"tx/auth\""), "{json}");
+    assert!(
+        json.contains("\"git_remote\": \"git@github.com:owner/repo.git\""),
+        "{json}"
+    );
+    assert!(json.contains("\"commit\": \""), "{json}");
+
+    let status = env.ok_in(&repo, &["git", "status"]);
+    assert!(status.contains("mapped tasklynx branch: auth"), "{status}");
+    assert!(status.contains("recent commits:"), "{status}");
+    assert!(status.contains("Feature branch task"), "{status}");
+}
+
+#[test]
+fn complete_with_commit_links_task() {
+    let env = TestEnv::new("complete-commit");
+    env.ok(&["init"]);
+    let id = env.ok(&["add", "Commit shortcut task"]).trim().to_string();
+
+    let out = env.ok(&["complete", &id[..8], "--commit", "deadbeef"]);
+    assert!(out.contains("done"), "{out}");
+    let json = env.ok(&["export", "--format", "json"]);
+    assert!(json.contains("\"commit\": \"deadbeef\""), "{json}");
+
+    let err = env.fail(&[
+        "complete",
+        "--done-before",
+        "2026-01-01",
+        "--commit",
+        "deadbeef",
+    ]);
+    assert!(err.contains("--commit requires a single task id"), "{err}");
+}
+
 fn git_available() -> bool {
     Command::new("git")
         .arg("--version")
@@ -1137,10 +1207,29 @@ fn git_open_prints_commit_and_pr_urls() {
     let err = env.fail_in(&repo, &["git", "link", &id[..8], "--pr", "ftp://bad"]);
     assert!(err.contains("--pr must be an http(s) URL"), "{err}");
 
-    let unlinked = env
-        .ok_in(&repo, &["add", "Nothing linked"])
+    let issue_id = env
+        .ok_in(&repo, &["add", "Issue linked task"])
         .trim()
         .to_string();
+    let issue = "https://github.com/owner/repo/issues/9";
+    env.ok_in(&repo, &["git", "link", &issue_id[..8], "--issue", issue]);
+    let issue_url = env
+        .ok_in(&repo, &["git", "open", &issue_id[..8], "--print"])
+        .trim()
+        .to_string();
+    assert_eq!(issue_url, issue);
+    let json = env.ok_in(&repo, &["export", "--format", "json"]);
+    assert!(
+        json.contains("\"git_issue_url\": \"https://github.com/owner/repo/issues/9\""),
+        "{json}"
+    );
+    let err = env.fail_in(
+        &repo,
+        &["git", "link", &issue_id[..8], "--issue", "ftp://bad"],
+    );
+    assert!(err.contains("--issue must be an http(s) URL"), "{err}");
+
+    let unlinked = env.ok(&["add", "Nothing linked"]).trim().to_string();
     let err = env.fail_in(&repo, &["git", "open", &unlinked[..8], "--print"]);
     assert!(err.contains("task has no commit or PR link"), "{err}");
 }

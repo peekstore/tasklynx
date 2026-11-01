@@ -28,7 +28,7 @@ Running `tx` with no subcommand opens the terminal board.
 | `tx start <id>` | Start a local timer and mark a task in progress |
 | `tx stop` | Stop the running timer |
 | `tx time [id]` | Show tracked time versus estimates |
-| `tx complete <id>` | Mark a task done |
+| `tx complete <id> [--commit <sha>]` | Mark a task done and optionally link a commit |
 | `tx reopen <id>` | Reopen a completed task |
 | `tx next` | Show the best next task to work on |
 | `tx delete <id>` | Move a task to trash |
@@ -50,10 +50,10 @@ Running `tx` with no subcommand opens the terminal board.
 | `tx stats` | Show task and branch totals |
 | `tx branch` | Manage branches |
 | `tx git status` | Show Git and Tasklynx branch context |
-| `tx git link <id>` | Link a task to a commit or PR |
+| `tx git link <id>` | Link a task to a commit, PR, or issue |
 | `tx git sync` | Link tasks from commit trailers |
 | `tx git scan` | Find TODO/FIXME comments in tracked files |
-| `tx git open <id>` | Open a task commit or PR in the browser |
+| `tx git open <id>` | Open a task commit, PR, or issue in the browser |
 | `tx git hook` | Install or remove the Tasklynx Git hook |
 | `tx git activate <id>` | Mark a task active for commit trailers |
 | `tx git deactivate` | Clear the active commit task |
@@ -177,10 +177,11 @@ tx edit <id> --remove-tag stale
 ```bash
 tx doing <id>
 tx complete <id>
+tx complete <id> --commit <sha>
 tx reopen <id>
 ```
 
-Completing a task records `completed_at`; reopening clears it and returns the task to `todo`. Completing or deleting a task automatically stops its running timer.
+Completing a task records `completed_at`; reopening clears it and returns the task to `todo`. Completing or deleting a task automatically stops its running timer. `tx complete --commit` links the supplied commit as part of the same atomic update.
 
 Bulk completion closes every open task due on or before a date:
 
@@ -293,13 +294,16 @@ tx git status
 tx git link <id>
 tx git link <id> --commit <sha>
 tx git link <id> --pr https://github.com/owner/repo/pull/42
+tx git link <id> --issue https://github.com/owner/repo/issues/7
 tx git open <id>
 tx git open <id> --print
 ```
 
-`tx git status` reports the repository root, Git branch, HEAD, remote, and open tasks on the current Tasklynx branch. `tx git link` stores the commit, Git branch, and remote URL on the task. When `--commit` is omitted, `HEAD` is used. `--pr` stores a pull request or merge request URL.
+`tx git status` reports the repository root, Git branch, mapped Tasklynx branch, HEAD, remote, recent commits, and open tasks on the current Tasklynx branch. `tx git link` stores the commit, Git branch, and remote URL on the task. When `--commit` is omitted, `HEAD` is used. `--pr` stores a pull request or merge request URL, and `--issue` stores an issue URL.
 
-`tx git open` opens the task's PR URL when present, otherwise its commit URL. Use `--print` to print the URL without launching a browser.
+With `[git] auto_branch = true` (the default), `tx add` maps the current Git branch to a Tasklynx branch by stripping `branch_prefix` (`tx/auth` becomes `auth`) and switches to it. With `link_commits = true`, the new task also records the current Git branch, remote, and `HEAD` commit. Set either option to `false` to keep manual branch and commit linking.
+
+`tx git open` opens the task's PR URL when present, then its issue URL, and otherwise its commit URL. Use `--print` to print the URL without launching a browser.
 
 ### Scanning code comments
 

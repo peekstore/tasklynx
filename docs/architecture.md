@@ -67,6 +67,7 @@ Config is separate from data:
 
 - `~/.config/peekstore/tasklynx/config.toml` (or `$XDG_CONFIG_HOME/...`).
 - Missing or partial config safely falls back to `AppConfig::default()`.
+- The `[git]` table controls branch mapping, automatic Git metadata on `tx add`, and commit linking.
 - The `[ai]` table controls opt-in provider selection, model, endpoint, context limits, and redaction.
 
 ## AI planning

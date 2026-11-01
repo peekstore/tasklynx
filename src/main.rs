@@ -77,6 +77,8 @@ enum Cmd {
         done_before: Option<String>,
         #[arg(long)]
         all: bool,
+        #[arg(long)]
+        commit: Option<String>,
     },
     Reopen {
         id: String,
@@ -250,6 +252,8 @@ enum GitCmd {
         commit: Option<String>,
         #[arg(long)]
         pr: Option<String>,
+        #[arg(long)]
+        issue: Option<String>,
     },
     Sync {
         #[arg(long, default_value_t = 100)]
@@ -929,24 +933,39 @@ async fn main() -> Result<()> {
                 .or_else(|| template.map(|template| template.priority.clone()))
                 .unwrap_or_default();
 
-            let mut t = Task::new(
-                title,
-                project,
-                data.current_branch.clone(),
-                priority,
-                tags,
-                due,
-            );
+            let config = config::load()?;
+            let git_info = if config.git.auto_branch || config.git.link_commits {
+                git::discover()
+            } else {
+                None
+            };
+            let target_branch = match &git_info {
+                Some(info) if config.git.auto_branch => {
+                    git::task_branch(&info.branch, &config.git.branch_prefix)
+                        .unwrap_or_else(|| data.current_branch.clone())
+                }
+                _ => data.current_branch.clone(),
+            };
+            let auto_switch = config.git.auto_branch && target_branch != data.current_branch;
+
+            let mut t = Task::new(title, project, target_branch.clone(), priority, tags, due);
             if let Some(desc) = description {
                 t.description = desc;
             }
             t.estimate_minutes = estimate;
             t.commit = commit;
+            if let Some(info) = &git_info {
+                t.git_branch = info.branch.clone();
+                t.git_remote = info.remote.clone();
+                if t.commit.is_none() && config.git.link_commits {
+                    t.commit = info.commit.clone();
+                }
+            }
             t.repeat = repeat;
             t.repeat_until = repeat_until;
 
             let warnings: Vec<(String, String, f64)> =
-                duplicates::similar_to(&t, &data.tasks, &data.current_branch, false, 0.72)
+                duplicates::similar_to(&t, &data.tasks, &target_branch, false, 0.72)
                     .into_iter()
                     .take(3)
                     .map(|(other, score)| {
@@ -958,7 +977,15 @@ async fn main() -> Result<()> {
                     })
                     .collect();
             let id = t.id.to_string();
-            store::add(&mut data, t)?;
+            let previous = data.clone();
+            if auto_switch {
+                if !data.branches.iter().any(|branch| branch == &target_branch) {
+                    data.branches.push(target_branch.clone());
+                }
+                data.current_branch = target_branch;
+            }
+            data.tasks.push(t);
+            store::save_with_undo(&data, &previous)?;
             println!("{}", id);
             for (other_id, title, score) in warnings {
                 eprintln!(
@@ -1014,7 +1041,17 @@ async fn main() -> Result<()> {
             force,
             done_before,
             all,
+            commit,
         } => {
+            if commit.is_some() && id.is_none() {
+                anyhow::bail!("--commit requires a single task id");
+            }
+            if commit
+                .as_deref()
+                .is_some_and(|value| value.trim().is_empty())
+            {
+                anyhow::bail!("--commit must not be empty");
+            }
             let _lock = store::StoreLock::acquire()?;
             match (id, done_before) {
                 (Some(_), Some(_)) => {
@@ -1033,6 +1070,13 @@ async fn main() -> Result<()> {
                     let previous = data.clone();
                     let next = {
                         let t = store::find_mut(&mut data, &id)?;
+                        if let Some(commit) = &commit {
+                            t.commit = Some(commit.clone());
+                            if let Some(info) = git::discover() {
+                                t.git_branch = info.branch;
+                                t.git_remote = info.remote;
+                            }
+                        }
                         t.set_status(Status::Done)
                     };
                     if let Some(next) = next {
@@ -1504,40 +1548,69 @@ async fn main() -> Result<()> {
             }
         },
         Cmd::Git { action } => match action {
-            GitCmd::Status => match git::discover() {
-                Some(info) => {
-                    println!("repo: {}", info.root.display());
-                    println!("git branch: {}", info.branch);
-                    println!("head: {}", info.commit.as_deref().unwrap_or("-"));
-                    println!("remote: {}", info.remote.as_deref().unwrap_or("-"));
-                    println!("tasklynx branch: {}", data.current_branch);
-                    if info.branch != data.current_branch {
-                        println!("note: git branch differs from tasklynx branch");
-                    }
-                    let open: Vec<&Task> = data
-                        .tasks
-                        .iter()
-                        .filter(|t| t.status != Status::Done && t.branch == data.current_branch)
-                        .collect();
-                    println!("open tasks: {}", open.len());
-                    for t in open {
+            GitCmd::Status => {
+                let config = config::load()?;
+                match git::discover() {
+                    Some(info) => {
+                        println!("repo: {}", info.root.display());
+                        println!("git branch: {}", info.branch);
+                        println!("head: {}", info.commit.as_deref().unwrap_or("-"));
+                        println!("remote: {}", info.remote.as_deref().unwrap_or("-"));
+                        println!("tasklynx branch: {}", data.current_branch);
+                        let mapped = git::task_branch(&info.branch, &config.git.branch_prefix);
                         println!(
-                            "  {}  {:7} {:10} {}",
-                            &t.id.to_string()[..8],
-                            t.priority,
-                            due_display(t),
-                            t.title
+                            "mapped tasklynx branch: {}",
+                            mapped.as_deref().unwrap_or("-")
                         );
+                        if mapped
+                            .as_deref()
+                            .is_some_and(|branch| branch != data.current_branch)
+                        {
+                            println!("note: git branch differs from tasklynx branch");
+                        }
+                        let commits = git::recent_commits(5).unwrap_or_default();
+                        if !commits.is_empty() {
+                            println!("recent commits:");
+                            for commit in commits {
+                                println!(
+                                    "  {}  {}",
+                                    &commit.sha[..commit.sha.len().min(12)],
+                                    commit.body.lines().next().unwrap_or("")
+                                );
+                            }
+                        }
+                        let open: Vec<&Task> = data
+                            .tasks
+                            .iter()
+                            .filter(|t| t.status != Status::Done && t.branch == data.current_branch)
+                            .collect();
+                        println!("open tasks: {}", open.len());
+                        for t in open {
+                            println!(
+                                "  {}  {:7} {:10} {}",
+                                &t.id.to_string()[..8],
+                                t.priority,
+                                due_display(t),
+                                t.title
+                            );
+                        }
                     }
+                    None => println!("not in a git repository"),
                 }
-                None => println!("not in a git repository"),
-            },
-            GitCmd::Link { id, commit, pr } => {
+            }
+            GitCmd::Link {
+                id,
+                commit,
+                pr,
+                issue,
+            } => {
                 let info =
                     git::discover().ok_or_else(|| anyhow::anyhow!("not in a git repository"))?;
-                if let Some(pr) = &pr {
-                    if !pr.starts_with("http://") && !pr.starts_with("https://") {
-                        anyhow::bail!("--pr must be an http(s) URL");
+                for (flag, url) in [("--pr", pr.as_deref()), ("--issue", issue.as_deref())] {
+                    if let Some(url) = url {
+                        if !url.starts_with("http://") && !url.starts_with("https://") {
+                            anyhow::bail!("{flag} must be an http(s) URL");
+                        }
                     }
                 }
                 let commit = commit.or_else(|| info.commit.clone()).ok_or_else(|| {
@@ -1552,6 +1625,9 @@ async fn main() -> Result<()> {
                     t.git_remote = info.remote.clone();
                     if let Some(pr) = pr {
                         t.git_pr_url = Some(pr);
+                    }
+                    if let Some(issue) = issue {
+                        t.git_issue_url = Some(issue);
                     }
                     t.updated_at = chrono::Utc::now();
                     t.id.to_string()
@@ -1636,12 +1712,12 @@ async fn main() -> Result<()> {
             }
             GitCmd::Open { id, print } => {
                 let task = store::find(&data, &id)?;
-                let url = match task.git_pr_url.as_deref() {
-                    Some(url) => url.to_string(),
-                    None => {
+                let url = match (task.git_pr_url.as_deref(), task.git_issue_url.as_deref()) {
+                    (Some(url), _) | (None, Some(url)) => url.to_string(),
+                    (None, None) => {
                         let commit = task.commit.as_deref().ok_or_else(|| {
                             anyhow::anyhow!(
-                                "task has no commit or PR link; run `tx git link` first"
+                                "task has no commit or PR link and no issue link; run `tx git link` first"
                             )
                         })?;
                         let remote = task.git_remote.as_deref().ok_or_else(|| {

@@ -161,6 +161,8 @@ pub struct Task {
     #[serde(default)]
     pub git_pr_url: Option<String>,
     #[serde(default)]
+    pub git_issue_url: Option<String>,
+    #[serde(default)]
     pub source_path: Option<String>,
     #[serde(default)]
     pub source_line: Option<u32>,
@@ -203,6 +205,7 @@ impl Task {
             git_branch: String::new(),
             git_remote: None,
             git_pr_url: None,
+            git_issue_url: None,
             source_path: None,
             source_line: None,
             parent: None,
@@ -291,6 +294,7 @@ impl Task {
         next.due = Some(next_due);
         next.commit = None;
         next.git_pr_url = None;
+        next.git_issue_url = None;
         next.source_path = None;
         next.source_line = None;
         next.series_id = Some(self.series_id.unwrap_or(self.id));
@@ -384,6 +388,25 @@ impl Default for ProjectData {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
+pub struct GitConfig {
+    pub auto_branch: bool,
+    pub branch_prefix: String,
+    pub link_commits: bool,
+    pub hooks: bool,
+}
+impl Default for GitConfig {
+    fn default() -> Self {
+        Self {
+            auto_branch: true,
+            branch_prefix: "tx/".into(),
+            link_commits: true,
+            hooks: false,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
 pub struct AiConfig {
     pub provider: String,
     pub model: String,
@@ -433,6 +456,7 @@ pub struct AppConfig {
     pub default_project: String,
     #[serde(default)]
     pub views: BTreeMap<String, SavedView>,
+    pub git: GitConfig,
     pub ai: AiConfig,
 }
 impl Default for AppConfig {
@@ -448,6 +472,7 @@ impl Default for AppConfig {
             font_family: "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace".into(),
             default_project: "default".into(),
             views: BTreeMap::new(),
+            git: GitConfig::default(),
             ai: AiConfig::default(),
         }
     }
@@ -634,6 +659,7 @@ mod tests {
         assert_eq!(t.series_id, None);
         assert!(t.time_entries.is_empty());
         assert!(t.git_branch.is_empty());
+        assert!(t.git_issue_url.is_none());
         assert!(t.blocked_by.is_empty());
         assert!(t.source_path.is_none());
         assert!(t.source_line.is_none());

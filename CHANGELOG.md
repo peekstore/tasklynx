@@ -7,10 +7,13 @@
 - Added subtasks with `tx subtask` and tree rendering with `tx tree`.
 - Added `tx undo` plus recoverable deletes via `tx trash list|restore|purge`.
 - Added local Git integration with `tx git status` and `tx git link`.
+- Added `[git]` configuration with automatic branch mapping, Git metadata on `tx add`, and recent commits in `tx git status`.
 - Added `tx git sync` for linking tasks from `Tasklynx-Id` commit trailers.
 - Added `tx git scan` to turn TODO/FIXME/HACK comments into deduplicated tasks.
 - Added opt-in Git hooks with `tx git hook install|uninstall` and task activation.
-- Added `tx git open` for task commit and PR URLs, including `--print`.
+- Added `tx git open` for task commit, PR, and issue URLs, including `--print`.
+- Added `tx git link --issue` and optional issue URLs on tasks.
+- Added `tx complete --commit <sha>` as a shortcut for completing and linking work.
 - Added Git metadata, source locations, and blocker fields to the task schema with backward-compatible defaults.
 - Added opt-in AI provider configuration for `none`, Ollama, and OpenAI-compatible endpoints.
 - Added `tx ai plan` and `tx ai breakdown` with preview-by-default output and `--apply`.

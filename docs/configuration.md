@@ -47,6 +47,12 @@ default_project = "default"
 # search = "auth"
 # all = false
 
+[git]
+auto_branch = true
+branch_prefix = "tx/"
+link_commits = true
+hooks = false
+
 [ai]
 provider = "none"
 model = "llama3.1"
@@ -68,12 +74,22 @@ redact = true
 | `font_family` | string | CSS font stack for the dashboard |
 | `default_project` | string | Default project for new tasks |
 | `views.<name>` | table | Saved list filters managed by `tx view save` |
+| `git.auto_branch` | boolean | Map `tx add` to the current Git branch and switch Tasklynx branches automatically |
+| `git.branch_prefix` | string | Git branch prefix stripped when mapping to a Tasklynx branch |
+| `git.link_commits` | boolean | Store the current Git commit when creating a task |
+| `git.hooks` | boolean | Reserved for hook automation; hooks are installed explicitly with `tx git hook install` |
 | `ai.provider` | string | `none`, `ollama`, or `openai-compatible` |
 | `ai.model` | string | Model name sent to the provider |
 | `ai.endpoint` | string | Provider base URL |
 | `ai.max_context_tasks` | integer | Maximum open tasks included in prompt context |
 | `ai.include_descriptions` | boolean | Include task descriptions in prompt context |
 | `ai.redact` | boolean | Redact common secrets before sending prompts |
+
+## Git branch mapping
+
+With `git.auto_branch = true`, `tx add` reads the current Git branch and maps it to a Tasklynx branch by stripping `git.branch_prefix`. For example, with the default prefix `tx/`, Git branch `tx/auth` maps to Tasklynx branch `auth`; an unprefixed branch such as `main` maps unchanged. Tasklynx creates the branch if needed and switches to it before saving the task.
+
+When `git.link_commits = true`, new tasks also store the current Git branch, remote, and `HEAD` commit. An explicit `tx add --commit <sha>` takes precedence. Detached `HEAD` state does not trigger a branch switch.
 
 ## AI providers
 
