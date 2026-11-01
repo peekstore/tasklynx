@@ -16,7 +16,7 @@ jobs:
     name: "Test pipx installation"
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
@@ -31,7 +31,7 @@ jobs:
     name: "Build Debian/Ubuntu (.deb) package"
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
       - name: Build release binary
         run: cargo build --release
@@ -54,7 +54,7 @@ jobs:
     name: "Publish Chocolatey package"
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Build Chocolatey package
         shell: pwsh
         run: |
@@ -84,7 +84,7 @@ jobs:
     name: "Publish to NPM"
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-node@v4
         with:
           node-version: "20"
